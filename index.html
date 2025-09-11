@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cardápio - DIMENSÕES BURGUER</title>
     <style>
-        /* Estilos CSS (sem alterações, continuam os mesmos) */
+        /* Estilos CSS (sem alterações) */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding-bottom: 100px; color: #ffffff; background-image: url('https://i.imgur.com/8hXg0B1.jpeg'); background-size: cover; background-position: center; background-attachment: fixed; position: relative; overflow-x: hidden; }
         body::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: -1; }
         .container { max-width: 700px; margin: 20px auto; background: rgba(255, 255, 255, 0.9); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); color: #333333; }
@@ -113,32 +113,28 @@
 
     <script>
         // --- 1. CONFIGURAÇÕES E DADOS GLOBAIS ---
-        const lanches = [ { nome: "BARATIN", preco: 11.99 }, { nome: "SMASH 1.0", preco: 19.99 }, { nome: "SMASH 2.0", preco: 27.99 }, { nome: "SMASH 3.0", preco: 33.99 }, { nome: "ONION RINGS", preco: 29.99 }, { nome: "VULCANO", preco: 24.99 }, { nome: "VULCANO DIMENSIONAL", preco: 31.99 } ];
-        const combos = [ { nome: "COMBO BARATIN", preco: 23.99 }, { nome: "COMBO SMASH 1.0", preco: 31.99 }, { nome: "COMBO SMASH 2.0", preco: 38.99 }, { nome: "COMBO SMASH 3.0", preco: 46.99 }, { nome: "COMBO ONION RINGS", preco: 41.99 }, { nome: "COMBO VULCANO", preco: 35.99 }, { nome: "COMBO VULCANO DIMENSIONAL", preco: 44.99 } ];
+        const lanches = [ { nome: "BARATIN", preco: 14.99 }, { nome: "SMASH 1.0", preco: 19.99 }, { nome: "SMASH 2.0", preco: 27.99 }, { nome: "SMASH 3.0", preco: 33.99 }, { nome: "ONION RINGS", preco: 29.99 }, { nome: "VULCANO", preco: 24.99 }, { nome: "VULCANO DIMENSIONAL", preco: 31.99 } ];
+        const combos = [ { nome: "COMBO BARATIN", preco: 25.99 }, { nome: "COMBO SMASH 1.0", preco: 31.99 }, { nome: "COMBO SMASH 2.0", preco: 38.99 }, { nome: "COMBO SMASH 3.0", preco: 46.99 }, { nome: "COMBO ONION RINGS", preco: 41.99 }, { nome: "COMBO VULCANO", preco: 35.99 }, { nome: "COMBO VULCANO DIMENSIONAL", preco: 44.99 } ];
         const bebidas = [ { nome: "Refri Lata", preco: 4.50 }, { nome: "Coca-Cola 600ml", preco: 6.00 }, { nome: "Guaraná 1L", preco: 6.50 } ];
         const hamburgueriaCoords = { lat: -16.650244, lon: -49.153223 };
+        const numeroHamburgueria = "556291014682";
 
         let cart = [];
         let taxaFrete = 0;
+        let clienteLatitude = null;
+        let clienteLongitude = null;
 
         // --- 2. FUNÇÕES PRINCIPAIS ---
 
-        // Renderiza os itens do cardápio na tela
         function renderMenu(menu, containerId) {
             const container = document.getElementById(containerId);
+            if (!container) return; // Adiciona uma verificação de segurança
+            container.innerHTML = '';
             menu.forEach(item => {
-                container.innerHTML += `
-                    <div class="menu-item">
-                        <div class="item-details"><strong>${item.nome}</strong></div>
-                        <div class="item-purchase">
-                            <span>R$ ${item.preco.toFixed(2).replace('.', ',')}</span>
-                            <button class="add-button" onclick="addToCart('${item.nome}', ${item.preco})">+</button>
-                        </div>
-                    </div>`;
+                container.innerHTML += `<div class="menu-item"><div class="item-details"><strong>${item.nome}</strong></div><div class="item-purchase"><span>R$ ${item.preco.toFixed(2).replace('.', ',')}</span><button class="add-button" onclick="addToCart('${item.nome}', ${item.preco})">+</button></div></div>`;
             });
         }
         
-        // Adiciona um item ao carrinho
         function addToCart(nome, preco) {
             cart.push({ nome, preco });
             updateCart();
@@ -148,10 +144,11 @@
             }
         }
 
-        // Remove um item do carrinho
         function removeFromCart(index) {
             cart.splice(index, 1);
-            taxaFrete = 0; // Reseta o frete ao modificar o carrinho
+            taxaFrete = 0;
+            clienteLatitude = null;
+            clienteLongitude = null;
             document.getElementById('frete-info').style.display = 'none';
             const locationBtn = document.getElementById('location-btn');
             locationBtn.disabled = false;
@@ -159,7 +156,6 @@
             updateCart();
         }
 
-        // Atualiza a exibição do carrinho e o total
         function updateCart() {
             const cartItemsContainer = document.getElementById('cart-items');
             const cartEmptyMessage = document.getElementById('cart-empty-message');
@@ -176,13 +172,7 @@
                 cartEmptyMessage.style.display = 'none';
                 checkoutBtn.disabled = false;
                 cart.forEach((item, index) => {
-                    cartItemsContainer.innerHTML += `
-                        <div class="cart-item">
-                            <span>${item.nome}</span>
-                            <span>R$ ${item.preco.toFixed(2).replace('.', ',')} 
-                                <button class="remove-item-btn" onclick="removeFromCart(${index})">×</button>
-                            </span>
-                        </div>`;
+                    cartItemsContainer.innerHTML += `<div class="cart-item"><span>${item.nome}</span><span>R$ ${item.preco.toFixed(2).replace('.', ',')} <button class="remove-item-btn" onclick="removeFromCart(${index})">×</button></span></div>`;
                     subtotal += item.preco;
                 });
             }
@@ -190,7 +180,6 @@
             totalElement.innerText = `Total: R$ ${totalFinal.toFixed(2).replace('.', ',')}`;
         }
         
-        // Calcula o frete baseado na localização
         function calculateDelivery() {
             const freteInfoDiv = document.getElementById('frete-info');
             if (!navigator.geolocation) {
@@ -208,7 +197,9 @@
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const clienteCoords = { lat: position.coords.latitude, lon: position.coords.longitude };
+                    clienteLatitude = position.coords.latitude;
+                    clienteLongitude = position.coords.longitude;
+                    const clienteCoords = { lat: clienteLatitude, lon: clienteLongitude };
                     const distancia = haversineDistance(hamburgueriaCoords, clienteCoords);
                     const distanciaArredondada = Math.ceil(distancia);
                     taxaFrete = distanciaArredondada * 2.00;
@@ -220,7 +211,7 @@
                 },
                 (error) => {
                     let errorMessage = "Erro. Por favor, digite seu endereço.";
-                    if (error.code === 1) errorMessage = "Você negou a permissão de localização. Digite seu endereço ou libere a permissão.";
+                    if (error.code === 1) errorMessage = "Você negou a permissão. Digite seu endereço ou libere a permissão.";
                     else if (error.code === 2) errorMessage = "Não foi possível obter sua localização. Verifique sua conexão ou GPS.";
                     
                     freteInfoDiv.innerHTML = errorMessage;
@@ -233,9 +224,7 @@
             );
         }
 
-        // Envia o pedido formatado para o WhatsApp
         function enviarPedido() {
-            const numeroHamburgueria = "556291014682";
             const nomeCliente = document.getElementById("nome").value.trim();
             const endereco = document.getElementById("endereco").value.trim();
             const observacoes = document.getElementById("obs").value.trim();
@@ -260,6 +249,11 @@
                               `*Cliente:* ${nomeCliente}\n\n` +
                               `*ITENS DO PEDIDO:*\n${itensPedido}\n` +
                               `*ENDEREÇO DE ENTREGA:*\n${endereco}\n\n`;
+
+            if (clienteLatitude && clienteLongitude) {
+                const linkMapa = `https://maps.google.com/maps?q=${clienteLatitude},${clienteLongitude}`;
+                textoPedido += `*📍 LOCALIZAÇÃO GPS (para o entregador):*\n${linkMapa}\n\n`;
+            }
             
             if (observacoes) {
                 textoPedido += `*OBSERVAÇÕES:*\n${observacoes}\n\n`;
@@ -283,8 +277,6 @@
         }
 
         // --- 3. FUNÇÕES AUXILIARES E INICIALIZAÇÃO ---
-
-        // Mostra/esconde o campo de troco
         function toggleTrocoField() {
             const pagamentoSelect = document.getElementById('pagamento');
             const trocoDiv = document.getElementById('troco-div');
@@ -295,17 +287,14 @@
             }
         }
         
-        // Calcula a distância (Fórmula de Haversine)
         function haversineDistance(coords1, coords2) {
             const R = 6371; const dLat = (coords2.lat - coords1.lat) * Math.PI / 180; const dLon = (coords2.lon - coords1.lon) * Math.PI / 180; const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(coords1.lat * Math.PI / 180) * Math.cos(coords2.lat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return R * c;
         }
 
-        // Funções de UI (carrinho e modal)
         function toggleCart() { const cartBody = document.getElementById('cart-body'); const cartToggleIcon = document.getElementById('cart-toggle-icon'); cartBody.classList.toggle('expanded'); cartToggleIcon.style.transform = cartBody.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)'; }
         function showOrderModal() { document.getElementById('order-modal').style.display = 'flex'; }
         function hideOrderModal() { document.getElementById('order-modal').style.display = 'none'; }
         
-        // Quando a página carregar, renderiza o menu e configura os "escutadores" de eventos
         window.onload = () => {
             renderMenu(lanches, 'lanches-menu');
             renderMenu(combos, 'combos-menu');
