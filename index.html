@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cardápio - DIMENSÕES BURGUER</title>
     <style>
-        /* Paleta de Cores e Estilos Anteriores... */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding-bottom: 100px; color: #ffffff; background-image: url('https://i.imgur.com/se61g1G.png'); background-size: cover; background-position: center; background-attachment: fixed; position: relative; overflow-x: hidden; }
+        /* Estilos CSS (sem alterações, continuam os mesmos) */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding-bottom: 100px; color: #ffffff; background-image: url('https://i.imgur.com/8hXg0B1.jpeg'); background-size: cover; background-position: center; background-attachment: fixed; position: relative; overflow-x: hidden; }
         body::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: -1; }
         .container { max-width: 700px; margin: 20px auto; background: rgba(255, 255, 255, 0.9); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); color: #333333; }
         .header { text-align: center; margin-bottom: 25px; }
@@ -39,29 +39,25 @@
         .modal-content { background: white; padding: 25px; border-radius: 12px; max-width: 500px; width: 90%; color: #333333; }
         .modal-content h2 { margin-top: 0; color: #1a1a1a; }
         label { font-weight: 600; margin-bottom: 8px; color: #333; display: block; margin-top: 15px;}
-        input[type="text"], select, textarea { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #dddfe2; box-sizing: border-box; font-size: 1rem; }
+        input[type="text"], select, textarea, input[type="number"] { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #dddfe2; box-sizing: border-box; font-size: 1rem; }
         textarea { resize: vertical; min-height: 80px;}
         .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px;}
         .modal-actions button { flex-grow: 1; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
         #cancel-btn { background-color: #FFC107; color: #333; }
         #confirm-btn { background-color: #4CAF50; color: white; }
-        
-        /* === NOVOS ESTILOS PARA O FRETE === */
         #location-btn { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; margin-bottom: 15px;}
         #location-btn:disabled { background-color: #aaa; }
-        #frete-info { background-color: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 10px; text-align: center; font-size: 1rem; display: none;}
-
+        #frete-info { background-color: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 10px; text-align: center; font-size: 1rem; display: none; color: #333;}
+        .frete-error { color: #D8000C; background-color: #FFBABA; }
     </style>
 </head>
 <body>
-
     <div class="container">
         <div class="header">
             <h1>🍔 DIMENSÕES BURGUER 🍔</h1>
             <p>Escolha seus itens, adicione ao carrinho e feche o pedido!</p>
             <a href="https://wa.me/c/556291014682" target="_blank" class="catalog-btn">📷 Ver Fotos no Catálogo</a>
         </div>
-        
         <h2 class="section-title">🥪 Lanches Individuais</h2>
         <div id="lanches-menu"></div>
         <h2 class="section-title">🍟 Combos com Fritas e Refrigerante</h2>
@@ -89,26 +85,25 @@
         <div class="modal-content">
             <h2>Falta pouco!</h2>
             <p>Preencha seus dados para concluir o pedido.</p>
-            
-            <label for="nome">Seu Nome:</label>
+            <label for="nome">Seu Nome *</label>
             <input type="text" id="nome" name="nome" placeholder="Digite seu nome completo" required>
-            
             <button type="button" id="location-btn" onclick="calculateDelivery()">📍 Calcular Frete com Minha Localização</button>
             <div id="frete-info"></div>
-            
-            <label for="endereco">Ou digite seu Endereço Completo:</label>
-            <input type="text" id="endereco" name="endereco" placeholder="Caso não queira usar a localização" required>
-
-            <label for="obs">Observações (opcional):</label>
+            <label for="endereco">Endereço Completo (Rua, Nº, Bairro) *</label>
+            <input type="text" id="endereco" name="endereco" placeholder="Endereço obrigatório" required>
+            <label for="obs">Observações (opcional)</label>
             <textarea id="obs" name="obs" placeholder="Ex: Tirar a cebola, ponto da carne, etc."></textarea>
-            
-            <label for="pagamento">Forma de Pagamento:</label>
+            <label for="pagamento">Forma de Pagamento *</label>
             <select id="pagamento" name="pagamento">
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="Cartão de Crédito">Cartão de Crédito</option>
                 <option value="Cartão de Débito">Cartão de Débito</option>
                 <option value="Pix">Pix</option>
             </select>
+            <div id="troco-div" style="display: none;">
+                <label for="troco">Precisa de troco? Para qual valor?</label>
+                <input type="number" id="troco" name="troco" placeholder="Ex: 50">
+            </div>
             <div class="modal-actions">
                 <button id="cancel-btn" onclick="hideOrderModal()">Cancelar</button>
                 <button id="confirm-btn" onclick="enviarPedido()">Enviar para o WhatsApp</button>
@@ -117,33 +112,60 @@
     </div>
 
     <script>
-        // CARDÁPIO E CONSTANTES
-        const lanches = [ { nome: "BARATIN", preco: 14.99 }, { nome: "SMASH 1.0", preco: 19.99 }, { nome: "SMASH 2.0", preco: 27.99 }, { nome: "SMASH 3.0", preco: 33.99 }, { nome: "ONION RINGS", preco: 29.99 }, { nome: "VULCANO", preco: 24.99 }, { nome: "VULCANO DIMENSIONAL", preco: 31.99 } ];
-        const combos = [ { nome: "COMBO BARATIN", preco: 25.99 }, { nome: "COMBO SMASH 1.0", preco: 31.99 }, { nome: "COMBO SMASH 2.0", preco: 38.99 }, { nome: "COMBO SMASH 3.0", preco: 46.99 }, { nome: "COMBO ONION RINGS", preco: 41.99 }, { nome: "COMBO VULCANO", preco: 35.99 }, { nome: "COMBO VULCANO DIMENSIONAL", preco: 44.99 } ];
+        // --- 1. CONFIGURAÇÕES E DADOS GLOBAIS ---
+        const lanches = [ { nome: "BARATIN", preco: 11.99 }, { nome: "SMASH 1.0", preco: 19.99 }, { nome: "SMASH 2.0", preco: 27.99 }, { nome: "SMASH 3.0", preco: 33.99 }, { nome: "ONION RINGS", preco: 29.99 }, { nome: "VULCANO", preco: 24.99 }, { nome: "VULCANO DIMENSIONAL", preco: 31.99 } ];
+        const combos = [ { nome: "COMBO BARATIN", preco: 23.99 }, { nome: "COMBO SMASH 1.0", preco: 31.99 }, { nome: "COMBO SMASH 2.0", preco: 38.99 }, { nome: "COMBO SMASH 3.0", preco: 46.99 }, { nome: "COMBO ONION RINGS", preco: 41.99 }, { nome: "COMBO VULCANO", preco: 35.99 }, { nome: "COMBO VULCANO DIMENSIONAL", preco: 44.99 } ];
         const bebidas = [ { nome: "Refri Lata", preco: 4.50 }, { nome: "Coca-Cola 600ml", preco: 6.00 }, { nome: "Guaraná 1L", preco: 6.50 } ];
         const hamburgueriaCoords = { lat: -16.650244, lon: -49.153223 };
 
-        // ELEMENTOS DA PÁGINA
-        const cartItemsContainer = document.getElementById('cart-items');
-        const cartBody = document.getElementById('cart-body');
-        const cartEmptyMessage = document.getElementById('cart-empty-message');
-        const totalElement = document.getElementById('cart-total');
-        const checkoutBtn = document.getElementById('checkout-btn');
-        const modal = document.getElementById('order-modal');
-        const cartToggleIcon = document.getElementById('cart-toggle-icon');
-        const freteInfoDiv = document.getElementById('frete-info');
-        
         let cart = [];
-        let taxaFrete = 0; // Variável para armazenar o valor do frete
+        let taxaFrete = 0;
 
-        // FUNÇÕES DO MENU
-        function renderMenu(menu, containerId) { /* ...código existente... */ }
+        // --- 2. FUNÇÕES PRINCIPAIS ---
 
-        // FUNÇÕES DO CARRINHO
-        function addToCart(nome, preco) { /* ...código existente... */ }
-        function removeFromCart(index) { /* ...código existente... */ }
+        // Renderiza os itens do cardápio na tela
+        function renderMenu(menu, containerId) {
+            const container = document.getElementById(containerId);
+            menu.forEach(item => {
+                container.innerHTML += `
+                    <div class="menu-item">
+                        <div class="item-details"><strong>${item.nome}</strong></div>
+                        <div class="item-purchase">
+                            <span>R$ ${item.preco.toFixed(2).replace('.', ',')}</span>
+                            <button class="add-button" onclick="addToCart('${item.nome}', ${item.preco})">+</button>
+                        </div>
+                    </div>`;
+            });
+        }
         
+        // Adiciona um item ao carrinho
+        function addToCart(nome, preco) {
+            cart.push({ nome, preco });
+            updateCart();
+            const cartBody = document.getElementById('cart-body');
+            if (!cartBody.classList.contains('expanded')) {
+                toggleCart();
+            }
+        }
+
+        // Remove um item do carrinho
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            taxaFrete = 0; // Reseta o frete ao modificar o carrinho
+            document.getElementById('frete-info').style.display = 'none';
+            const locationBtn = document.getElementById('location-btn');
+            locationBtn.disabled = false;
+            locationBtn.innerText = "📍 Calcular Frete com Minha Localização";
+            updateCart();
+        }
+
+        // Atualiza a exibição do carrinho e o total
         function updateCart() {
+            const cartItemsContainer = document.getElementById('cart-items');
+            const cartEmptyMessage = document.getElementById('cart-empty-message');
+            const totalElement = document.getElementById('cart-total');
+            const checkoutBtn = document.getElementById('checkout-btn');
+            
             cartItemsContainer.innerHTML = '';
             let subtotal = 0;
 
@@ -154,7 +176,13 @@
                 cartEmptyMessage.style.display = 'none';
                 checkoutBtn.disabled = false;
                 cart.forEach((item, index) => {
-                    cartItemsContainer.innerHTML += `<div class="cart-item"><span>${item.nome}</span><span>R$ ${item.preco.toFixed(2).replace('.', ',')} <button class="remove-item-btn" onclick="removeFromCart(${index})">×</button></span></div>`;
+                    cartItemsContainer.innerHTML += `
+                        <div class="cart-item">
+                            <span>${item.nome}</span>
+                            <span>R$ ${item.preco.toFixed(2).replace('.', ',')} 
+                                <button class="remove-item-btn" onclick="removeFromCart(${index})">×</button>
+                            </span>
+                        </div>`;
                     subtotal += item.preco;
                 });
             }
@@ -162,76 +190,66 @@
             totalElement.innerText = `Total: R$ ${totalFinal.toFixed(2).replace('.', ',')}`;
         }
         
-        function toggleCart() { /* ...código existente... */ }
-
-        // FUNÇÕES DO MODAL E PEDIDO
-        function showOrderModal() { /* ...código existente... */ }
-        function hideOrderModal() { /* ...código existente... */ }
-
-        // === NOVA LÓGICA DE CÁLCULO DE FRETE ===
+        // Calcula o frete baseado na localização
         function calculateDelivery() {
+            const freteInfoDiv = document.getElementById('frete-info');
             if (!navigator.geolocation) {
-                alert("Geolocalização não é suportada pelo seu navegador. Por favor, digite o endereço manualmente.");
+                freteInfoDiv.innerHTML = "Geolocalização não é suportada. Por favor, digite o endereço.";
+                freteInfoDiv.classList.add('frete-error');
+                freteInfoDiv.style.display = 'block';
                 return;
             }
 
             const locationBtn = document.getElementById('location-btn');
             locationBtn.disabled = true;
-            locationBtn.innerText = "Calculando...";
+            locationBtn.innerText = "Buscando sua localização...";
+            freteInfoDiv.classList.remove('frete-error');
+            freteInfoDiv.style.display = 'none';
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const clienteCoords = {
-                        lat: position.coords.latitude,
-                        lon: position.coords.longitude
-                    };
-
+                    const clienteCoords = { lat: position.coords.latitude, lon: position.coords.longitude };
                     const distancia = haversineDistance(hamburgueriaCoords, clienteCoords);
-                    const distanciaArredondada = Math.ceil(distancia); // Arredonda pra cima
-                    taxaFrete = distanciaArredondada * 2.00; // R$2 por KM
+                    const distanciaArredondada = Math.ceil(distancia);
+                    taxaFrete = distanciaArredondada * 2.00;
 
                     freteInfoDiv.innerHTML = `Distância: <strong>${distancia.toFixed(2)} km</strong><br>Taxa de Entrega: <strong>R$ ${taxaFrete.toFixed(2).replace('.', ',')}</strong>`;
                     freteInfoDiv.style.display = 'block';
-                    document.getElementById('endereco').value = "Localização por GPS enviada.";
-                    locationBtn.innerText = "Frete Calculado!";
-                    
-                    updateCart(); // Atualiza o total no carrinho para incluir o frete
+                    locationBtn.innerText = "✅ Frete Calculado!";
+                    updateCart();
                 },
-                () => {
-                    alert("Não foi possível obter sua localização. Verifique as permissões do seu navegador e tente novamente, ou digite o endereço manualmente.");
+                (error) => {
+                    let errorMessage = "Erro. Por favor, digite seu endereço.";
+                    if (error.code === 1) errorMessage = "Você negou a permissão de localização. Digite seu endereço ou libere a permissão.";
+                    else if (error.code === 2) errorMessage = "Não foi possível obter sua localização. Verifique sua conexão ou GPS.";
+                    
+                    freteInfoDiv.innerHTML = errorMessage;
+                    freteInfoDiv.classList.add('frete-error');
+                    freteInfoDiv.style.display = 'block';
                     locationBtn.disabled = false;
                     locationBtn.innerText = "📍 Tentar Novamente";
-                }
+                },
+                { timeout: 10000 }
             );
         }
 
-        function haversineDistance(coords1, coords2) {
-            const R = 6371; // Raio da Terra em km
-            const dLat = (coords2.lat - coords1.lat) * Math.PI / 180;
-            const dLon = (coords2.lon - coords1.lon) * Math.PI / 180;
-            const a =
-                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(coords1.lat * Math.PI / 180) * Math.cos(coords2.lat * Math.PI / 180) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c; // Distância em km
-        }
-
+        // Envia o pedido formatado para o WhatsApp
         function enviarPedido() {
             const numeroHamburgueria = "556291014682";
-            const nomeCliente = document.getElementById("nome").value;
-            const endereco = document.getElementById("endereco").value;
-            const observacoes = document.getElementById("obs").value;
-            const pagamento = document.getElementById("pagamento").value;
-            
+            const nomeCliente = document.getElementById("nome").value.trim();
+            const endereco = document.getElementById("endereco").value.trim();
+            const observacoes = document.getElementById("obs").value.trim();
+            const pagamento = document.getElementById('pagamento').value;
+            const trocoPara = document.getElementById("troco").value;
+
+            if (!nomeCliente || !endereco) {
+                alert("Por favor, preencha todos os campos obrigatórios (*): Nome e Endereço.");
+                return;
+            }
+
             let subtotal = 0;
             cart.forEach(item => subtotal += item.preco);
             const totalFinal = subtotal + taxaFrete;
-
-            if (!nomeCliente || !endereco) {
-                alert("Por favor, preencha seu nome e endereço (ou calcule o frete pela localização).");
-                return;
-            }
 
             let itensPedido = '';
             cart.forEach(item => {
@@ -251,7 +269,11 @@
                            `Subtotal dos Itens: R$ ${subtotal.toFixed(2).replace('.', ',')}\n` +
                            `Taxa de Entrega: R$ ${taxaFrete.toFixed(2).replace('.', ',')}\n` +
                            `*Total a Pagar: R$ ${totalFinal.toFixed(2).replace('.', ',')}*\n\n` +
-                           `*Forma de Pagamento:* ${pagamento}`;
+                           `*Forma de Pagamento:* ${pagamento}\n`;
+
+            if (pagamento === 'Dinheiro' && trocoPara) {
+                textoPedido += `*Levar troco para: R$ ${trocoPara}*`;
+            }
 
             const textoCodificado = encodeURIComponent(textoPedido);
             const linkWhatsApp = `https://wa.me/${numeroHamburgueria}?text=${textoCodificado}`;
@@ -260,21 +282,38 @@
             hideOrderModal();
         }
 
-        // INICIALIZAÇÃO
+        // --- 3. FUNÇÕES AUXILIARES E INICIALIZAÇÃO ---
+
+        // Mostra/esconde o campo de troco
+        function toggleTrocoField() {
+            const pagamentoSelect = document.getElementById('pagamento');
+            const trocoDiv = document.getElementById('troco-div');
+            if (pagamentoSelect.value === 'Dinheiro') {
+                trocoDiv.style.display = 'block';
+            } else {
+                trocoDiv.style.display = 'none';
+            }
+        }
+        
+        // Calcula a distância (Fórmula de Haversine)
+        function haversineDistance(coords1, coords2) {
+            const R = 6371; const dLat = (coords2.lat - coords1.lat) * Math.PI / 180; const dLon = (coords2.lon - coords1.lon) * Math.PI / 180; const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(coords1.lat * Math.PI / 180) * Math.cos(coords2.lat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return R * c;
+        }
+
+        // Funções de UI (carrinho e modal)
+        function toggleCart() { const cartBody = document.getElementById('cart-body'); const cartToggleIcon = document.getElementById('cart-toggle-icon'); cartBody.classList.toggle('expanded'); cartToggleIcon.style.transform = cartBody.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)'; }
+        function showOrderModal() { document.getElementById('order-modal').style.display = 'flex'; }
+        function hideOrderModal() { document.getElementById('order-modal').style.display = 'none'; }
+        
+        // Quando a página carregar, renderiza o menu e configura os "escutadores" de eventos
         window.onload = () => {
             renderMenu(lanches, 'lanches-menu');
             renderMenu(combos, 'combos-menu');
             renderMenu(bebidas, 'bebidas-menu');
             updateCart();
+            document.getElementById('pagamento').addEventListener('change', toggleTrocoField);
+            toggleTrocoField();
         };
-
-        // Preenchendo funções que não foram alteradas mas são necessárias
-        function renderMenu(menu, containerId) { const container = document.getElementById(containerId); menu.forEach(item => { container.innerHTML += `<div class="menu-item"><div class="item-details"><strong>${item.nome}</strong></div><div class="item-purchase"><span>R$ ${item.preco.toFixed(2).replace('.', ',')}</span><button class="add-button" onclick="addToCart('${item.nome}', ${item.preco})">+</button></div></div>`; }); }
-        function addToCart(nome, preco) { cart.push({ nome, preco }); updateCart(); if (!cartBody.classList.contains('expanded')) { toggleCart(); } }
-        function removeFromCart(index) { cart.splice(index, 1); updateCart(); }
-        function toggleCart() { cartBody.classList.toggle('expanded'); cartToggleIcon.style.transform = cartBody.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)'; }
-        function showOrderModal() { modal.style.display = 'flex'; }
-        function hideOrderModal() { modal.style.display = 'none'; }
     </script>
 </body>
 </html>
