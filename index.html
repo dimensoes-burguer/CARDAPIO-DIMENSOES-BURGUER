@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cardápio - DIMENSÕES BURGUER</title>
     <style>
-        /* Estilos CSS (sem alterações, exceto .modal-content) */
+        /* Estilos CSS (sem alterações, continuam os mesmos) */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding-bottom: 100px; color: #ffffff; background-image: url('https://i.imgur.com/8hXg0B1.jpeg'); background-size: cover; background-position: center; background-attachment: fixed; position: relative; overflow-x: hidden; }
         body::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: -1; }
         .container { max-width: 700px; margin: 20px auto; background: rgba(255, 255, 255, 0.9); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); color: #333333; }
@@ -36,24 +36,15 @@
         .cart-checkout-btn:disabled { background-color: #8BC34A; }
         #cart-empty-message { text-align: center; padding: 20px; color: #606770; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: none; justify-content: center; align-items: center; }
-        .modal-content {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            max-width: 500px;
-            width: 90%;
-            color: #333333;
-            /* --- CORREÇÃO APLICADA AQUI --- */
-            max-height: 85vh; /* Limita a altura máxima a 85% da altura da tela */
-            overflow-y: auto; /* Adiciona uma barra de rolagem vertical SE o conteúdo ultrapassar a altura */
-        }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; max-width: 500px; width: 90%; color: #333333; max-height: 85vh; overflow-y: auto; }
+        .modal-content h2 { margin-top: 0; color: #1a1a1a; }
         label { font-weight: 600; margin-bottom: 8px; color: #333; display: block; margin-top: 15px;}
         input[type="text"], select, textarea, input[type="number"] { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #dddfe2; box-sizing: border-box; font-size: 1rem; }
         textarea { resize: vertical; min-height: 80px;}
         .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px;}
         .modal-actions button { flex-grow: 1; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
-        #cancel-btn { background-color: #FFC107; color: #333; }
-        #confirm-btn { background-color: #4CAF50; color: white; }
+        #cancel-btn, #cancel-soda-btn { background-color: #FFC107; color: #333; }
+        #confirm-btn, #confirm-soda-btn { background-color: #4CAF50; color: white; }
         #location-btn { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; margin-bottom: 15px;}
         #location-btn:disabled { background-color: #aaa; }
         #frete-info { background-color: #f0f8ff; padding: 10px; border-radius: 6px; margin-top: 10px; text-align: center; font-size: 1rem; display: none; color: #333;}
@@ -96,7 +87,7 @@
             <p>Preencha seus dados para concluir o pedido.</p>
             <label for="nome">Seu Nome *</label>
             <input type="text" id="nome" name="nome" placeholder="Digite seu nome completo" required>
-            <button type="button" id="location-btn" onclick="calculateDelivery()">📍 Calcular Frete com Minha Localização</button>
+            <button type="button" id="location-btn" onclick="calculateDelivery()">📍 Calcular Frete com Minha Localização *</button>
             <div id="frete-info"></div>
             <label for="endereco">Endereço Completo (Rua, Nº, Bairro) *</label>
             <input type="text" id="endereco" name="endereco" placeholder="Endereço obrigatório" required>
@@ -120,6 +111,23 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="soda-modal">
+        <div class="modal-content">
+            <h2>Escolha o Sabor do Refrigerante</h2>
+            <select id="soda-select">
+                <option value="SODA">Soda Limonada</option>
+                <option value="SUKITA LARANJA">Sukita Laranja</option>
+                <option value="COCA-COLA">Coca-Cola</option>
+                <option value="COCA-COLA ZERO">Coca-Cola Zero</option>
+                <option value="GUARANÁ">Guaraná</option>
+            </select>
+            <div class="modal-actions">
+                <button id="cancel-soda-btn" onclick="hideSodaModal()">Cancelar</button>
+                <button id="confirm-soda-btn" onclick="confirmSodaChoice()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- 1. CONFIGURAÇÕES E DADOS GLOBAIS ---
         const lanches = [ { nome: "BARATIN", preco: 14.99 }, { nome: "SMASH 1.0", preco: 19.99 }, { nome: "SMASH 2.0", preco: 27.99 }, { nome: "SMASH 3.0", preco: 33.99 }, { nome: "ONION RINGS", preco: 29.99 }, { nome: "VULCANO", preco: 24.99 }, { nome: "VULCANO DIMENSIONAL", preco: 31.99 } ];
@@ -132,24 +140,44 @@
         let taxaFrete = 0;
         let clienteLatitude = null;
         let clienteLongitude = null;
+        let pendingCombo = null;
 
         // --- 2. FUNÇÕES PRINCIPAIS ---
 
-        function renderMenu(menu, containerId) {
+        function renderMenu(menu, containerId, isCombo = false) {
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
             menu.forEach(item => {
-                container.innerHTML += `<div class="menu-item"><div class="item-details"><strong>${item.nome}</strong></div><div class="item-purchase"><span>R$ ${item.preco.toFixed(2).replace('.', ',')}</span><button class="add-button" onclick="addToCart('${item.nome}', ${item.preco})">+</button></div></div>`;
+                container.innerHTML += `<div class="menu-item"><div class="item-details"><strong>${item.nome}</strong></div><div class="item-purchase"><span>R$ ${item.preco.toFixed(2).replace('.', ',')}</span><button class="add-button" onclick="addToCart('${item.nome}', ${item.preco}, ${isCombo})">+</button></div></div>`;
             });
         }
         
-        function addToCart(nome, preco) {
-            cart.push({ nome, preco });
-            updateCart();
-            const cartBody = document.getElementById('cart-body');
-            if (!cartBody.classList.contains('expanded')) {
-                toggleCart();
+        function addToCart(nome, preco, isCombo) {
+            if (isCombo) {
+                pendingCombo = { nome, preco };
+                showSodaModal();
+            } else {
+                cart.push({ nome, preco });
+                updateCart();
+                const cartBody = document.getElementById('cart-body');
+                if (!cartBody.classList.contains('expanded')) {
+                    toggleCart();
+                }
+            }
+        }
+
+        function confirmSodaChoice() {
+            const saborRefri = document.getElementById('soda-select').value;
+            if (pendingCombo) {
+                cart.push({ ...pendingCombo, saborRefri: saborRefri });
+                pendingCombo = null;
+                hideSodaModal();
+                updateCart();
+                const cartBody = document.getElementById('cart-body');
+                if (!cartBody.classList.contains('expanded')) {
+                    toggleCart();
+                }
             }
         }
 
@@ -161,7 +189,7 @@
             document.getElementById('frete-info').style.display = 'none';
             const locationBtn = document.getElementById('location-btn');
             locationBtn.disabled = false;
-            locationBtn.innerText = "📍 Calcular Frete com Minha Localização";
+            locationBtn.innerText = "📍 Calcular Frete com Minha Localização *";
             updateCart();
         }
 
@@ -181,7 +209,8 @@
                 cartEmptyMessage.style.display = 'none';
                 checkoutBtn.disabled = false;
                 cart.forEach((item, index) => {
-                    cartItemsContainer.innerHTML += `<div class="cart-item"><span>${item.nome}</span><span>R$ ${item.preco.toFixed(2).replace('.', ',')} <button class="remove-item-btn" onclick="removeFromCart(${index})">×</button></span></div>`;
+                    const itemName = item.saborRefri ? `${item.nome} (${item.saborRefri})` : item.nome;
+                    cartItemsContainer.innerHTML += `<div class="cart-item"><span>${itemName}</span><span>R$ ${item.preco.toFixed(2).replace('.', ',')} <button class="remove-item-btn" onclick="removeFromCart(${index})">×</button></span></div>`;
                     subtotal += item.preco;
                 });
             }
@@ -240,8 +269,8 @@
             const pagamento = document.getElementById('pagamento').value;
             const trocoPara = document.getElementById("troco").value;
 
-            if (!nomeCliente || !endereco) {
-                alert("Por favor, preencha todos os campos obrigatórios (*): Nome e Endereço.");
+            if (!nomeCliente || !endereco || !clienteLatitude) {
+                alert("Por favor, preencha todos os campos obrigatórios (*) e também calcule o frete usando sua localização.");
                 return;
             }
 
@@ -251,7 +280,8 @@
 
             let itensPedido = '';
             cart.forEach(item => {
-                itensPedido += `▪️ ${item.nome} (R$ ${item.preco.toFixed(2).replace('.', ',')})\n`;
+                const itemName = item.saborRefri ? `${item.nome} (${item.saborRefri})` : item.nome;
+                itensPedido += `▪️ ${itemName} (R$ ${item.preco.toFixed(2).replace('.', ',')})\n`;
             });
 
             let textoPedido = `*-- NOVO PEDIDO | DIMENSÕES BURGUER --* 🍔\n\n` +
@@ -260,7 +290,8 @@
                               `*ENDEREÇO DE ENTREGA:*\n${endereco}\n\n`;
 
             if (clienteLatitude && clienteLongitude) {
-                const linkMapa = `https://maps.google.com/?q=${clienteLatitude},${clienteLongitude}`;
+                // CORREÇÃO NO LINK DO MAPA
+                const linkMapa = `https://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}`;
                 textoPedido += `*📍 LOCALIZAÇÃO GPS (para o entregador):*\n${linkMapa}\n\n`;
             }
             
@@ -303,11 +334,13 @@
         function toggleCart() { const cartBody = document.getElementById('cart-body'); const cartToggleIcon = document.getElementById('cart-toggle-icon'); cartBody.classList.toggle('expanded'); cartToggleIcon.style.transform = cartBody.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)'; }
         function showOrderModal() { document.getElementById('order-modal').style.display = 'flex'; }
         function hideOrderModal() { document.getElementById('order-modal').style.display = 'none'; }
+        function showSodaModal() { document.getElementById('soda-modal').style.display = 'flex'; }
+        function hideSodaModal() { document.getElementById('soda-modal').style.display = 'none'; pendingCombo = null; }
         
         window.onload = () => {
-            renderMenu(lanches, 'lanches-menu');
-            renderMenu(combos, 'combos-menu');
-            renderMenu(bebidas, 'bebidas-menu');
+            renderMenu(lanches, 'lanches-menu', false);
+            renderMenu(combos, 'combos-menu', true);
+            renderMenu(bebidas, 'bebidas-menu', false);
             updateCart();
             document.getElementById('pagamento').addEventListener('change', toggleTrocoField);
             toggleTrocoField();
