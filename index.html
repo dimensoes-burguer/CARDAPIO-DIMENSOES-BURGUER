@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cardápio - DIMENSÕES BURGUER</title>
     <style>
-        /* Estilos CSS (sem alterações, continuam os mesmos) */
+        /* Estilos CSS permanecem os mesmos para manter sua estrutura */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding-bottom: 100px; color: #ffffff; background-image: url('https://i.imgur.com/8hXg0B1.jpeg'); background-size: cover; background-position: center; background-attachment: fixed; position: relative; overflow-x: hidden; }
         body::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); z-index: -1; }
         .container { max-width: 700px; margin: 20px auto; background: rgba(255, 255, 255, 0.9); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); color: #333333; }
@@ -56,7 +56,7 @@
         <div class="header">
             <h1>🍔 DIMENSÕES BURGUER 🍔</h1>
             <p>Escolha seus itens, adicione ao carrinho e feche o pedido!</p>
-            <a href="https://wa.me/c/556291014682" target="_blank" class="catalog-btn">📷 Ver Fotos no Catálogo</a>
+            <a href="https://wa.me/5562991014682" target="_blank" class="catalog-btn">📷 Ver Fotos no Catálogo</a>
         </div>
         <h2 class="section-title">🥪 Lanches Individuais</h2>
         <div id="lanches-menu"></div>
@@ -64,10 +64,8 @@
         <div id="combos-menu"></div>
         <h2 class="section-title">🍟 Combos Família</h2>
         <div id="combos-familia-menu"></div>
-        
         <h2 class="section-title">🍟 Porções</h2>
         <div id="porcoes-menu"></div>
-        
         <h2 class="section-title">🥤 Bebidas</h2>
         <div id="bebidas-menu"></div>
     </div>
@@ -135,7 +133,6 @@
     </div>
 
     <script>
-        // --- 1. CONFIGURAÇÕES E DADOS GLOBAIS ---
         const lanches = [
             { nome: "BARATIN", preco: 14.99 },
             { nome: "SMASH 1.0", preco: 19.99 },
@@ -174,13 +171,10 @@
             { nome: "COMBO 2 ANEIS DE SATURNO", preco: 59.99 },
             { nome: "COMBO 4 ANEIS DE SATURNO", preco: 104.99 }
         ];
-        
-        // Separei os itens em dois arrays
         const porcoes = [
             { nome: "PORÇÃO DE BATATA FRITA", preco: 9.99 },
             { nome: "PORÇÃO DE ONION RINGS", preco: 10.99 }
         ];
-        
         const bebidas = [
             { nome: "COCA COLA LATA", preco: 5.00 },
             { nome: "COCA COLA ZERO LATA", preco: 5.00 },
@@ -192,15 +186,13 @@
         ];
 
         const hamburgueriaCoords = { lat: -16.650244, lon: -49.153223 };
-        const numeroHamburgueria = "556291014682";
+        const numeroHamburgueria = "5562991014682"; // Atualizado conforme solicitado
 
         let cart = [];
         let taxaFrete = 0;
         let clienteLatitude = null;
         let clienteLongitude = null;
         let pendingCombo = null;
-
-        // --- 2. FUNÇÕES PRINCIPAIS ---
 
         function renderMenu(menu, containerId, isCombo = false) {
             const container = document.getElementById(containerId);
@@ -279,7 +271,7 @@
         function calculateDelivery() {
             const freteInfoDiv = document.getElementById('frete-info');
             if (!navigator.geolocation) {
-                freteInfoDiv.innerHTML = "Geolocalização não é suportada. Por favor, digite o endereço.";
+                freteInfoDiv.innerHTML = "Geolocalização não é suportada.";
                 freteInfoDiv.classList.add('frete-error');
                 freteInfoDiv.style.display = 'block';
                 return;
@@ -287,30 +279,22 @@
 
             const locationBtn = document.getElementById('location-btn');
             locationBtn.disabled = true;
-            locationBtn.innerText = "Buscando sua localização...";
-            freteInfoDiv.classList.remove('frete-error');
-            freteInfoDiv.style.display = 'none';
+            locationBtn.innerText = "Buscando localização...";
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     clienteLatitude = position.coords.latitude;
                     clienteLongitude = position.coords.longitude;
-                    const clienteCoords = { lat: clienteLatitude, lon: clienteLongitude };
-                    const distancia = haversineDistance(hamburgueriaCoords, clienteCoords);
-                    const distanciaArredondada = Math.ceil(distancia);
-                    taxaFrete = distanciaArredondada * 2.00;
+                    const distancia = haversineDistance(hamburgueriaCoords, { lat: clienteLatitude, lon: clienteLongitude });
+                    taxaFrete = Math.ceil(distancia) * 2.00;
 
-                    freteInfoDiv.innerHTML = `Distância: <strong>${distancia.toFixed(2)} km</strong><br>Taxa de Entrega: <strong>R$ ${taxaFrete.toFixed(2).replace('.', ',')}</strong>`;
+                    freteInfoDiv.innerHTML = `Distância: <strong>${distancia.toFixed(2)} km</strong><br>Taxa: <strong>R$ ${taxaFrete.toFixed(2).replace('.', ',')}</strong>`;
                     freteInfoDiv.style.display = 'block';
                     locationBtn.innerText = "✅ Frete Calculado!";
                     updateCart();
                 },
                 (error) => {
-                    let errorMessage = "Erro. Por favor, digite seu endereço.";
-                    if (error.code === 1) errorMessage = "Você negou a permissão. Digite seu endereço ou libere a permissão.";
-                    else if (error.code === 2) errorMessage = "Não foi possível obter sua localização. Verifique sua conexão ou GPS.";
-                    
-                    freteInfoDiv.innerHTML = errorMessage;
+                    freteInfoDiv.innerHTML = "Erro ao obter localização.";
                     freteInfoDiv.classList.add('frete-error');
                     freteInfoDiv.style.display = 'block';
                     locationBtn.disabled = false;
@@ -320,6 +304,7 @@
             );
         }
 
+        // --- FUNÇÃO ENVIAR PEDIDO CORRIGIDA ---
         function enviarPedido() {
             const nomeCliente = document.getElementById("nome").value.trim();
             const endereco = document.getElementById("endereco").value.trim();
@@ -328,19 +313,19 @@
             const trocoPara = document.getElementById("troco").value;
 
             if (!nomeCliente || !endereco || !clienteLatitude) {
-                alert("Por favor, preencha todos os campos obrigatórios (*) e também calcule o frete usando sua localização.");
+                alert("Por favor, preencha nome, endereço e calcule o frete!");
                 return;
             }
 
             let subtotal = 0;
-            cart.forEach(item => subtotal += item.preco);
-            const totalFinal = subtotal + taxaFrete;
-
             let itensPedido = '';
             cart.forEach(item => {
                 const itemName = item.saborRefri ? `${item.nome} (${item.saborRefri})` : item.nome;
                 itensPedido += `▪️ ${itemName} (R$ ${item.preco.toFixed(2).replace('.', ',')})\n`;
+                subtotal += item.preco;
             });
+
+            const totalFinal = subtotal + taxaFrete;
 
             let textoPedido = `*-- NOVO PEDIDO | DIMENSÕES BURGUER --* 🍔\n\n` +
                               `*Cliente:* ${nomeCliente}\n\n` +
@@ -348,48 +333,33 @@
                               `*ENDEREÇO DE ENTREGA:*\n${endereco}\n\n`;
 
             if (clienteLatitude && clienteLongitude) {
-                // CORREÇÃO NO LINK DO MAPA
-                const linkMapa = `https://www.google.com/maps?q=$${clienteLatitude},${clienteLongitude}`;
-                textoPedido += `*📍 LOCALIZAÇÃO GPS (para o entregador):*\n${linkMapa}\n\n`;
+                // LINK CORRIGIDO SEM $ E COM DOMÍNIO OFICIAL
+                const linkMapa = `https://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}`;
+                textoPedido += `*📍 LOCALIZAÇÃO GPS:*\n${linkMapa}\n\n`;
             }
             
-            if (observacoes) {
-                textoPedido += `*OBSERVAÇÕES:*\n${observacoes}\n\n`;
-            }
+            if (observacoes) textoPedido += `*OBSERVAÇÕES:*\n${observacoes}\n\n`;
 
             textoPedido += `*RESUMO FINANCEIRO:*\n` +
-                           `Subtotal dos Itens: R$ ${subtotal.toFixed(2).replace('.', ',')}\n` +
-                           `Taxa de Entrega: R$ ${taxaFrete.toFixed(2).replace('.', ',')}\n` +
-                           `*Total a Pagar: R$ ${totalFinal.toFixed(2).replace('.', ',')}*\n\n` +
-                           `*Forma de Pagamento:* ${pagamento}\n`;
+                           `Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}\n` +
+                           `Taxa: R$ ${taxaFrete.toFixed(2).replace('.', ',')}\n` +
+                           `*Total: R$ ${totalFinal.toFixed(2).replace('.', ',')}*\n\n` +
+                           `*Pagamento:* ${pagamento}\n`;
 
-            if (pagamento === 'Dinheiro' && trocoPara) {
-                textoPedido += `*Levar troco para: R$ ${trocoPara}*`;
-            }
+            if (pagamento === 'Dinheiro' && trocoPara) textoPedido += `*Troco para: R$ ${trocoPara}*`;
 
-            const textoCodificado = encodeURIComponent(textoPedido);
-            const linkWhatsApp = `https://wa.me/${numeroHamburgueria}?text=${textoCodificado}`;
-
-            window.open(linkWhatsApp, '_blank');
-            hideOrderModal();
+            window.open(`https://wa.me/${numeroHamburgueria}?text=${encodeURIComponent(textoPedido)}`, '_blank');
         }
 
-        // --- 3. FUNÇÕES AUXILIARES E INICIALIZAÇÃO ---
         function toggleTrocoField() {
-            const pagamentoSelect = document.getElementById('pagamento');
-            const trocoDiv = document.getElementById('troco-div');
-            if (pagamentoSelect.value === 'Dinheiro') {
-                trocoDiv.style.display = 'block';
-            } else {
-                trocoDiv.style.display = 'none';
-            }
+            document.getElementById('troco-div').style.display = document.getElementById('pagamento').value === 'Dinheiro' ? 'block' : 'none';
         }
         
         function haversineDistance(coords1, coords2) {
             const R = 6371; const dLat = (coords2.lat - coords1.lat) * Math.PI / 180; const dLon = (coords2.lon - coords1.lon) * Math.PI / 180; const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(coords1.lat * Math.PI / 180) * Math.cos(coords2.lat * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return R * c;
         }
 
-        function toggleCart() { const cartBody = document.getElementById('cart-body'); const cartToggleIcon = document.getElementById('cart-toggle-icon'); cartBody.classList.toggle('expanded'); cartToggleIcon.style.transform = cartBody.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0deg)'; }
+        function toggleCart() { const cartBody = document.getElementById('cart-body'); document.getElementById('cart-toggle-icon').style.transform = cartBody.classList.toggle('expanded') ? 'rotate(180deg)' : 'rotate(0deg)'; }
         function showOrderModal() { document.getElementById('order-modal').style.display = 'flex'; }
         function hideOrderModal() { document.getElementById('order-modal').style.display = 'none'; }
         function showSodaModal() { document.getElementById('soda-modal').style.display = 'flex'; }
@@ -399,13 +369,9 @@
             renderMenu(lanches, 'lanches-menu', false);
             renderMenu(combosIndividuais, 'combos-menu', true);
             renderMenu(combosFamilia, 'combos-familia-menu', true);
-            // Renderiza separadamente
             renderMenu(porcoes, 'porcoes-menu', false);
             renderMenu(bebidas, 'bebidas-menu', false);
-            
-            updateCart();
             document.getElementById('pagamento').addEventListener('change', toggleTrocoField);
-            toggleTrocoField();
         };
     </script>
 </body>
