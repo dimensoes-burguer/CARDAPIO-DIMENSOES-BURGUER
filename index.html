@@ -108,6 +108,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
   <label>Observações</label><textarea id="obs" placeholder="Ex: tirar cebola, ponto da carne..."></textarea>
   <label>Forma de pagamento *</label><select id="pagamento" onchange="toggleTroco()"><option>Dinheiro</option><option>Cartão de Crédito</option><option>Cartão de Débito</option><option>Pix</option></select>
   <div id="trocoBox"><label>Troco para quanto?</label><input id="troco" type="number" placeholder="Ex: 50"></div>
+  <div id="orderSummary" class="order-summary"></div>
   <div class="actions"><button class="secondary" onclick="hideOrderModal()">Cancelar</button><button class="primary" onclick="enviarPedido()">Enviar pedido</button></div>
 </div></div></div>
 
@@ -223,6 +224,7 @@ function renderCardapio(){
   });
   if(!totalMostrado) menu.innerHTML='<div class="empty">Nenhum item encontrado.</div>';
   atualizarLoja();
+  atualizarResumoPedido();
 }
 
 function getItem(catId,itemId){const c=(cardapio.categorias||{})[catId]; return c && c.itens ? c.itens[itemId] : null}
@@ -327,20 +329,40 @@ async function registrarUsoCupomWeb(telefone){
   const codigo=codigoCupom(cupomAplicado.codigo);
   const tel=telefoneLimpo(telefone);
   const usoRef=database.ref('cupons_usos/'+codigo+'/'+tel);
-  if(cupomAplicado.um_por_telefone!==false){
-    const usoSnap=await usoRef.once('value');
-    if(usoSnap.exists()) return [false,'Este telefone já usou este cupom.'];
+  try{
+    if(cupomAplicado.um_por_telefone!==false){
+      const usoSnap=await usoRef.once('value');
+      if(usoSnap.exists()) return [false,'Este telefone já usou este cupom.'];
+    }
+    let committedOk=false;
+    await database.ref('cupons/'+codigo+'/usos_usados').transaction((atual)=>{
+      atual=Number(atual||0);
+      const max=Number(cupomAplicado.usos_maximos||0);
+      if(max>0 && atual>=max) return;
+      return atual+1;
+    }, (error, committed)=>{ committedOk = (!error && committed); });
+    if(!committedOk) return [false,'Cupom sem usos disponíveis.'];
+    if(cupomAplicado.um_por_telefone!==false){
+      await usoRef.set({telefone:tel,usado_em:new Date().toISOString(),codigo});
+    }
+    return [true,''];
+  }catch(e){
+    console.error('Erro ao registrar cupom:', e);
+    return [false,'Erro ao registrar o uso do cupom. Verifique a conexão e tente novamente.'];
   }
-  let okTrans=false, msg='Cupom indisponível.';
-  await database.ref('cupons/'+codigo+'/usos_usados').transaction((atual)=>{
-    atual=Number(atual||0);
-    const max=Number(cupomAplicado.usos_maximos||0);
-    if(max>0 && atual>=max) return;
-    okTrans=true; return atual+1;
-  }, (error, committed)=>{ if(error||!committed){okTrans=false;msg='Cupom sem usos disponíveis.';} });
-  if(!okTrans) return [false,msg];
-  await usoRef.set({telefone:tel,usado_em:new Date().toISOString(),codigo});
-  return [true,''];
+}
+function resumoValores(){
+  const subtotal=subtotalCarrinho();
+  const desconto=descontoCupom(cupomAplicado, subtotal);
+  const total=subtotal+taxaFrete-desconto;
+  return {subtotal, desconto, total};
+}
+function atualizarResumoPedido(){
+  const el=document.getElementById('orderSummary');
+  if(!el) return;
+  const {subtotal, desconto, total}=resumoValores();
+  let cupomTxt = cupomAplicado ? `<div class="row"><span>Cupom ${codigoCupom(cupomAplicado.codigo)}</span><b>-${moeda(desconto)}</b></div>` : '';
+  el.innerHTML = `<div class="row"><span>Subtotal</span><b>${moeda(subtotal)}</b></div><div class="row"><span>Frete</span><b>${moeda(taxaFrete)}</b></div>${cupomTxt}<div class="row total-row"><span>Total</span><b>${moeda(total)}</b></div>`;
 }
 
 function removeFromCart(i){cart.splice(i,1); updateCart();}
@@ -354,8 +376,9 @@ function updateCart(){
   document.getElementById("total").innerHTML = desconto>0 ? `${moeda(total)} <span class="discount-row">(-${moeda(desconto)})</span>` : moeda(total);
   document.getElementById("cartCount").textContent=cart.length+" item"+(cart.length!==1?"s":"");
   atualizarLoja();
+  atualizarResumoPedido();
 }
-function showOrderModal(){if(!lojaAbertaManual)return alert("Loja fechada."); if(!cart.length)return; document.getElementById("orderModal").classList.add("show")}
+function showOrderModal(){if(!lojaAbertaManual)return alert("Loja fechada."); if(!cart.length)return; atualizarResumoPedido(); document.getElementById("orderModal").classList.add("show")}
 function hideOrderModal(){document.getElementById("orderModal").classList.remove("show")}
 function toggleTroco(){document.getElementById("trocoBox").style.display=document.getElementById("pagamento").value==="Dinheiro"?"block":"none"}
 function haversineDistance(a,b){const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lon-a.lon)*Math.PI/180;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
@@ -375,17 +398,48 @@ async function enviarPedido(){
     textoItens+=`▪️ ${nomeZap} (${moeda(i.preco)})\n`;
     itens.push({nome:i.nome,preco:Number(i.preco||0),detalhes:i.detalhes||""});
   });
-  const total=subtotal+taxaFrete;
-  const pedido={nome,endereco,obs,pagamento,troco:troco||"",tipo:"DELIVERY WEB",itens,acrescimos:taxaFrete,total,timestamp:Date.now()/1000,status:"novo"};
-  database.ref("pedidos_novos").push(pedido).then(()=>console.log("pedido enviado"));
-  let texto=`*-- NOVO PEDIDO | DIMENSÕES BURGUER --* 🍔\n\n*Cliente:* ${nome}\n\n*ITENS:*\n${textoItens}\n*ENDEREÇO:*\n${endereco}\n\n`;
-  texto+=`*📍 GPS:*\nhttps://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}\n\n`;
-  if(obs) texto+=`*OBS:*\n${obs}\n\n`;
-  texto+=`Subtotal: ${moeda(subtotal)}\nFrete: ${moeda(taxaFrete)}\n*Total: ${moeda(total)}*\nPagamento: ${pagamento}`;
-  if(pagamento==="Dinheiro"&&troco) texto+=`\nTroco para: R$ ${troco}`;
-  window.open(`https://wa.me/${numeroHamburgueria}?text=${encodeURIComponent(texto)}`,"_blank");
-  cart=[]; taxaFrete=0; limparCupom(); updateCart(); hideOrderModal();
+  const desconto=descontoCupom(cupomAplicado, subtotal);
+  const total=subtotal+taxaFrete-desconto;
+  const cupomPedido = cupomAplicado ? {
+    codigo: codigoCupom(cupomAplicado.codigo),
+    nome: cupomAplicado.nome || '',
+    tipo: cupomAplicado.tipo || 'valor',
+    valor: Number(cupomAplicado.valor || 0),
+    desconto: desconto
+  } : null;
+
+  const btn=document.querySelector('#orderModal .actions .primary');
+  const textoOriginal=btn ? btn.textContent : '';
+  if(btn){btn.disabled=true; btn.textContent='Enviando...';}
+  try{
+    if(cupomAplicado){
+      const [cupomOk, cupomErro] = await registrarUsoCupomWeb(telefone);
+      if(!cupomOk){
+        alert(cupomErro || 'Não foi possível usar este cupom.');
+        return;
+      }
+    }
+    const pedido={nome,telefone,endereco,obs,pagamento,troco:troco||"",tipo:"DELIVERY WEB",itens,acrescimos:taxaFrete,subtotal,desconto,total,cupom:cupomPedido,timestamp:Date.now()/1000,status:"novo"};
+    await database.ref("pedidos_novos").push(pedido);
+
+    let texto=`*-- NOVO PEDIDO | DIMENSÕES BURGUER --* 🍔\n\n*Cliente:* ${nome}\n*Telefone:* ${telefone}\n\n*ITENS:*\n${textoItens}\n*ENDEREÇO:*\n${endereco}\n\n`;
+    texto+=`*📍 GPS:*\nhttps://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}\n\n`;
+    if(obs) texto+=`*OBS:*\n${obs}\n\n`;
+    texto+=`*RESUMO FINANCEIRO:*\nSubtotal: ${moeda(subtotal)}\nFrete: ${moeda(taxaFrete)}\n`;
+    if(cupomPedido) texto+=`Cupom: ${cupomPedido.codigo}\nDesconto do cupom: -${moeda(desconto)}\n`;
+    texto+=`*Total: ${moeda(total)}*\nPagamento: ${pagamento}`;
+    if(pagamento==="Dinheiro"&&troco) texto+=`\nTroco para: R$ ${troco}`;
+    window.open(`https://wa.me/${numeroHamburgueria}?text=${encodeURIComponent(texto)}`,"_blank");
+    cart=[]; taxaFrete=0; limparCupom(); updateCart(); hideOrderModal();
+    alert('Pedido enviado com sucesso!');
+  }catch(e){
+    console.error('Erro ao enviar pedido:', e);
+    alert('Não foi possível enviar o pedido para o sistema. Verifique a internet e tente novamente.');
+  }finally{
+    if(btn){btn.disabled=false; btn.textContent=textoOriginal || 'Enviar pedido';}
+  }
 }
+
 toggleTroco(); iniciar();
 </script>
 </body>
