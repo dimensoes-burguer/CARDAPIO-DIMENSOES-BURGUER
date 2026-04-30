@@ -324,16 +324,34 @@ async function aplicarCupom(){
   updateCart();
 }
 function limparCupom(){cupomAplicado=null;document.getElementById('cupomInput').value='';const msg=document.getElementById('cupomMsg');msg.textContent='';updateCart();}
+async function validarCupomAntesEnvio(subtotal, telefone){
+  if(!cupomAplicado) return [true,''];
+  const codigo=codigoCupom(cupomAplicado.codigo);
+  const tel=telefoneLimpo(telefone);
+  try{
+    const snap=await database.ref('cupons/'+codigo).once('value');
+    const cupom=snap.val();
+    if(cupom) cupom.codigo=codigo;
+    const [ok,msg]=validarCupomDados(cupom, subtotal);
+    if(!ok) return [false,msg];
+    if(cupom.um_por_telefone!==false){
+      const usoSnap=await database.ref('cupons_usos/'+codigo+'/'+tel).once('value');
+      if(usoSnap.exists()) return [false,'Este telefone já usou este cupom.'];
+    }
+    cupomAplicado=cupom;
+    return [true,''];
+  }catch(e){
+    console.error('Erro ao validar cupom:', e);
+    return [false,'Erro ao validar cupom. Verifique a conexão e tente novamente.'];
+  }
+}
+
 async function registrarUsoCupomWeb(telefone){
   if(!cupomAplicado) return [true,''];
   const codigo=codigoCupom(cupomAplicado.codigo);
   const tel=telefoneLimpo(telefone);
   const usoRef=database.ref('cupons_usos/'+codigo+'/'+tel);
   try{
-    if(cupomAplicado.um_por_telefone!==false){
-      const usoSnap=await usoRef.once('value');
-      if(usoSnap.exists()) return [false,'Este telefone já usou este cupom.'];
-    }
     let committedOk=false;
     await database.ref('cupons/'+codigo+'/usos_usados').transaction((atual)=>{
       atual=Number(atual||0);
@@ -341,14 +359,24 @@ async function registrarUsoCupomWeb(telefone){
       if(max>0 && atual>=max) return;
       return atual+1;
     }, (error, committed)=>{ committedOk = (!error && committed); });
-    if(!committedOk) return [false,'Cupom sem usos disponíveis.'];
+
+    // Fallback: caso a transação não confirme por instabilidade, tenta atualizar de forma simples.
+    if(!committedOk){
+      const snap=await database.ref('cupons/'+codigo).once('value');
+      const cupom=snap.val()||{};
+      const usados=Number(cupom.usos_usados||0);
+      const max=Number(cupom.usos_maximos||0);
+      if(max>0 && usados>=max) return [false,'Cupom sem usos disponíveis.'];
+      await database.ref('cupons/'+codigo).update({usos_usados: usados+1});
+    }
+
     if(cupomAplicado.um_por_telefone!==false){
       await usoRef.set({telefone:tel,usado_em:new Date().toISOString(),codigo});
     }
     return [true,''];
   }catch(e){
     console.error('Erro ao registrar cupom:', e);
-    return [false,'Erro ao registrar o uso do cupom. Verifique a conexão e tente novamente.'];
+    return [false,'Pedido enviado, mas não foi possível registrar o uso do cupom. Confira o painel/admin.'];
   }
 }
 function resumoValores(){
@@ -391,6 +419,8 @@ function calculateDelivery(){
 async function enviarPedido(){
   const nome=document.getElementById("nome").value.trim(), telefone=telefoneLimpo(document.getElementById("telefone").value), endereco=document.getElementById("endereco").value.trim(), obs=document.getElementById("obs").value.trim(), pagamento=document.getElementById("pagamento").value, troco=document.getElementById("troco").value;
   if(!nome||!telefone||!endereco||!clienteLatitude) return alert("Preencha nome, telefone, endereço e calcule o frete.");
+  if(!database) return alert("Erro de conexão com o Firebase. Atualize a página e tente novamente.");
+
   let subtotal=0,textoItens="",itens=[];
   cart.forEach(i=>{
     subtotal+=Number(i.preco||0);
@@ -398,29 +428,56 @@ async function enviarPedido(){
     textoItens+=`▪️ ${nomeZap} (${moeda(i.preco)})\n`;
     itens.push({nome:i.nome,preco:Number(i.preco||0),detalhes:i.detalhes||""});
   });
-  const desconto=descontoCupom(cupomAplicado, subtotal);
-  const total=subtotal+taxaFrete-desconto;
-  const cupomPedido = cupomAplicado ? {
-    codigo: codigoCupom(cupomAplicado.codigo),
-    nome: cupomAplicado.nome || '',
-    tipo: cupomAplicado.tipo || 'valor',
-    valor: Number(cupomAplicado.valor || 0),
-    desconto: desconto
-  } : null;
 
   const btn=document.querySelector('#orderModal .actions .primary');
   const textoOriginal=btn ? btn.textContent : '';
   if(btn){btn.disabled=true; btn.textContent='Enviando...';}
+
   try{
+    // Antes de enviar, valida se o cupom ainda existe, não expirou e ainda possui usos disponíveis.
     if(cupomAplicado){
-      const [cupomOk, cupomErro] = await registrarUsoCupomWeb(telefone);
-      if(!cupomOk){
-        alert(cupomErro || 'Não foi possível usar este cupom.');
+      const [cupomValido, cupomErro] = await validarCupomAntesEnvio(subtotal, telefone);
+      if(!cupomValido){
+        alert(cupomErro || 'Cupom inválido.');
         return;
       }
     }
-    const pedido={nome,telefone,endereco,obs,pagamento,troco:troco||"",tipo:"DELIVERY WEB",itens,acrescimos:taxaFrete,subtotal,desconto,total,cupom:cupomPedido,timestamp:Date.now()/1000,status:"novo"};
-    await database.ref("pedidos_novos").push(pedido);
+
+    const desconto=descontoCupom(cupomAplicado, subtotal);
+    const total=subtotal+taxaFrete-desconto;
+    const cupomPedido = cupomAplicado ? {
+      codigo: codigoCupom(cupomAplicado.codigo),
+      nome: cupomAplicado.nome || '',
+      tipo: cupomAplicado.tipo || 'valor',
+      valor: Number(cupomAplicado.valor || 0),
+      desconto: desconto
+    } : null;
+
+    const pedido={
+      nome, telefone, endereco, obs, pagamento, troco:troco||'', tipo:'DELIVERY WEB', itens,
+      acrescimos:taxaFrete,
+      subtotal,
+      desconto,
+      desconto_cupom: desconto,
+      total,
+      valor_cobrado: total,
+      cupom: cupomPedido,
+      cupom_codigo: cupomPedido ? cupomPedido.codigo : '',
+      timestamp:Date.now()/1000,
+      status:'novo'
+    };
+
+    // Primeiro envia o pedido para /pedidos_novos para garantir que chegue ao sistema Python.
+    await database.ref('pedidos_novos').push(pedido);
+
+    // Depois registra o uso do cupom no mesmo momento da confirmação do pedido.
+    if(cupomAplicado){
+      const [usoOk, usoErro] = await registrarUsoCupomWeb(telefone);
+      if(!usoOk){
+        console.warn(usoErro);
+        alert(usoErro || 'Pedido enviado, mas houve falha ao contabilizar o cupom. Confira o painel.');
+      }
+    }
 
     let texto=`*-- NOVO PEDIDO | DIMENSÕES BURGUER --* 🍔\n\n*Cliente:* ${nome}\n*Telefone:* ${telefone}\n\n*ITENS:*\n${textoItens}\n*ENDEREÇO:*\n${endereco}\n\n`;
     texto+=`*📍 GPS:*\nhttps://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}\n\n`;
@@ -428,8 +485,8 @@ async function enviarPedido(){
     texto+=`*RESUMO FINANCEIRO:*\nSubtotal: ${moeda(subtotal)}\nFrete: ${moeda(taxaFrete)}\n`;
     if(cupomPedido) texto+=`Cupom: ${cupomPedido.codigo}\nDesconto do cupom: -${moeda(desconto)}\n`;
     texto+=`*Total: ${moeda(total)}*\nPagamento: ${pagamento}`;
-    if(pagamento==="Dinheiro"&&troco) texto+=`\nTroco para: R$ ${troco}`;
-    window.open(`https://wa.me/${numeroHamburgueria}?text=${encodeURIComponent(texto)}`,"_blank");
+    if(pagamento==='Dinheiro'&&troco) texto+=`\nTroco para: R$ ${troco}`;
+    window.open(`https://wa.me/${numeroHamburgueria}?text=${encodeURIComponent(texto)}`,'_blank');
     cart=[]; taxaFrete=0; limparCupom(); updateCart(); hideOrderModal();
     alert('Pedido enviado com sucesso!');
   }catch(e){
