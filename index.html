@@ -67,6 +67,33 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
 
 <div id="itemModal" class="modal"><div class="sheet" style="position:relative"><button class="close" onclick="closeItemModal()">×</button><div id="itemModalContent"></div></div></div>
 
+
+<div id="optionsModal" class="modal"><div class="sheet"><div class="sheet-content form">
+  <h2 id="optionsTitle">Escolha as opções</h2>
+  <div id="paoBox">
+    <label>Escolha o pão *</label>
+    <select id="paoSelect">
+      <option value="Brioche liso">Brioche liso</option>
+      <option value="Brioche premium">Brioche premium</option>
+      <option value="Pão australiano">Pão australiano</option>
+    </select>
+  </div>
+  <div id="refriBox">
+    <label>Escolha o refrigerante lata *</label>
+    <select id="refriSelect">
+      <option value="SODA">Soda Limonada</option>
+      <option value="SUKITA LARANJA">Sukita Laranja</option>
+      <option value="COCA-COLA">Coca-Cola</option>
+      <option value="COCA-COLA ZERO">Coca-Cola Zero</option>
+      <option value="GUARANÁ">Guaraná</option>
+    </select>
+  </div>
+  <div class="actions">
+    <button class="secondary" onclick="hideOptionsModal()">Cancelar</button>
+    <button class="primary" onclick="confirmOptionsChoice()">Adicionar</button>
+  </div>
+</div></div></div>
+
 <div id="orderModal" class="modal"><div class="sheet"><div class="sheet-content form">
   <h2>Finalizar pedido</h2>
   <label>Seu nome *</label><input id="nome" placeholder="Digite seu nome">
@@ -140,7 +167,7 @@ const cardapioInicial = {
 let database; try { firebase.initializeApp(firebaseConfig); database=firebase.database(); } catch(e){ console.error(e); }
 const numeroHamburgueria="5562991014682";
 const hamburgueriaCoords={lat:-16.650244,lon:-49.153223};
-let cardapio={categorias:{}}, cart=[], lojaAbertaManual=false, taxaFrete=0, clienteLatitude=null, clienteLongitude=null, itemAberto=null;
+let cardapio={categorias:{}}, cart=[], lojaAbertaManual=false, taxaFrete=0, clienteLatitude=null, clienteLongitude=null, itemAberto=null, opcaoPendente=null;
 
 function moeda(v){return "R$ "+Number(v||0).toFixed(2).replace(".",",")}
 function uid(prefix="id"){return prefix+"_"+Date.now()+"_"+Math.floor(Math.random()*9999)}
@@ -194,20 +221,73 @@ function renderCardapio(){
 }
 
 function getItem(catId,itemId){const c=(cardapio.categorias||{})[catId]; return c && c.itens ? c.itens[itemId] : null}
+function getCategoria(catId){return (cardapio.categorias||{})[catId] || null}
+function normalizar(txt){return String(txt||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()}
+function tipoOpcoes(catId,item){
+  const cat=getCategoria(catId);
+  const nome=normalizar(item && item.nome);
+  const categoria=normalizar(cat && cat.nome);
+
+  if(categoria.includes("LANCHES INDIVIDUAIS")){
+    if(nome !== "BARATIN") return {pao:true, refri:false};
+    return {pao:false, refri:false};
+  }
+
+  if(categoria.includes("COMBOS INDIVIDUAIS")){
+    if(nome.includes("BARATIN")) return {pao:false, refri:true};
+    return {pao:true, refri:true};
+  }
+
+  return {pao:false, refri:false};
+}
+function montarDetalhes(opcoes){
+  const partes=[];
+  if(opcoes && opcoes.pao) partes.push("Pão: "+opcoes.pao);
+  if(opcoes && opcoes.refri) partes.push("Refri: "+opcoes.refri);
+  return partes.join(" | ");
+}
 function openItem(catId,itemId){
   itemAberto=getItem(catId,itemId); if(!itemAberto)return;
   const foto=itemAberto.foto?`<img src="${itemAberto.foto}">`:`<div style="height:220px;display:flex;align-items:center;justify-content:center;font-size:64px;background:radial-gradient(circle,#d1fae5,#e9d5ff)">🍔</div>`;
-  document.getElementById("itemModalContent").innerHTML=`${foto}<div class="sheet-content"><h2>${itemAberto.nome}</h2><p>${itemAberto.descricao||'Item especial da Dimensões Burguer.'}</p><h2>${moeda(itemAberto.preco)}</h2><button class="primary" style="width:100%" onclick="addToCart(itemAberto);closeItemModal()">Adicionar ao carrinho</button></div>`;
+  document.getElementById("itemModalContent").innerHTML=`${foto}<div class="sheet-content"><h2>${itemAberto.nome}</h2><p>${itemAberto.descricao||'Item especial da Dimensões Burguer.'}</p><h2>${moeda(itemAberto.preco)}</h2><button class="primary" style="width:100%" onclick="addToCart(itemAberto, '${catId}');closeItemModal()">Adicionar ao carrinho</button></div>`;
   document.getElementById("itemModal").classList.add("show");
 }
 function closeItemModal(){document.getElementById("itemModal").classList.remove("show")}
-function addToCartById(catId,itemId){const i=getItem(catId,itemId); if(i)addToCart(i)}
-function addToCart(item){if(!lojaAbertaManual){alert("A loja está fechada.");return} cart.push({nome:item.nome,preco:Number(item.preco||0),descricao:item.descricao||"",foto:item.foto||""}); updateCart(); document.getElementById("cartBox").classList.add("open");}
+function addToCartById(catId,itemId){const i=getItem(catId,itemId); if(i)addToCart(i, catId)}
+function addToCart(item, catId=null){
+  if(!lojaAbertaManual){alert("A loja está fechada.");return}
+  const opcoes=catId ? tipoOpcoes(catId,item) : {pao:false,refri:false};
+  if(opcoes.pao || opcoes.refri){
+    opcaoPendente={item, opcoes};
+    document.getElementById("optionsTitle").textContent=item.nome;
+    document.getElementById("paoBox").style.display=opcoes.pao ? "block" : "none";
+    document.getElementById("refriBox").style.display=opcoes.refri ? "block" : "none";
+    document.getElementById("optionsModal").classList.add("show");
+    return;
+  }
+  inserirNoCarrinho(item, "");
+}
+function inserirNoCarrinho(item, detalhes=""){
+  cart.push({nome:item.nome,preco:Number(item.preco||0),descricao:item.descricao||"",foto:item.foto||"",detalhes:detalhes||""});
+  updateCart();
+  document.getElementById("cartBox").classList.add("open");
+}
+function hideOptionsModal(){opcaoPendente=null;document.getElementById("optionsModal").classList.remove("show")}
+function confirmOptionsChoice(){
+  if(!opcaoPendente) return;
+  const escolha={};
+  if(opcaoPendente.opcoes.pao) escolha.pao=document.getElementById("paoSelect").value;
+  if(opcaoPendente.opcoes.refri) escolha.refri=document.getElementById("refriSelect").value;
+  inserirNoCarrinho(opcaoPendente.item, montarDetalhes(escolha));
+  hideOptionsModal();
+  closeItemModal();
+}
 function removeFromCart(i){cart.splice(i,1); updateCart();}
 function toggleCart(){document.getElementById("cartBox").classList.toggle("open")}
 function updateCart(){
   const box=document.getElementById("cartItems"); box.innerHTML=""; let subtotal=0;
-  cart.forEach((it,i)=>{subtotal+=Number(it.preco||0); box.innerHTML+=`<div class="cart-row"><span>${it.nome}</span><span>${moeda(it.preco)} <button class="remove" onclick="removeFromCart(${i})">×</button></span></div>`;});
+  cart.forEach((it,i)=>{subtotal+=Number(it.preco||0); const nomeDetalhado=it.detalhes ? `${it.nome}<br><small style="color:#666">${it.detalhes}</small>` : it.nome;
+  box.innerHTML+=`<div class="cart-row"><span>${nomeDetalhado}</span><span>${moeda(it.preco)} <button class="remove" onclick="removeFromCart(${i})">×</button></span></div>`;});
   const total=subtotal+taxaFrete; document.getElementById("total").textContent=moeda(total);
   document.getElementById("cartCount").textContent=cart.length+" item"+(cart.length!==1?"s":"");
   atualizarLoja();
@@ -226,7 +306,12 @@ function enviarPedido(){
   const nome=document.getElementById("nome").value.trim(), endereco=document.getElementById("endereco").value.trim(), obs=document.getElementById("obs").value.trim(), pagamento=document.getElementById("pagamento").value, troco=document.getElementById("troco").value;
   if(!nome||!endereco||!clienteLatitude) return alert("Preencha nome, endereço e calcule o frete.");
   let subtotal=0,textoItens="",itens=[];
-  cart.forEach(i=>{subtotal+=Number(i.preco||0); textoItens+=`▪️ ${i.nome} (${moeda(i.preco)})\n`; itens.push({nome:i.nome,preco:Number(i.preco||0),detalhes:""});});
+  cart.forEach(i=>{
+    subtotal+=Number(i.preco||0);
+    const nomeZap=i.detalhes ? `${i.nome} (${i.detalhes})` : i.nome;
+    textoItens+=`▪️ ${nomeZap} (${moeda(i.preco)})\n`;
+    itens.push({nome:i.nome,preco:Number(i.preco||0),detalhes:i.detalhes||""});
+  });
   const total=subtotal+taxaFrete;
   const pedido={nome,endereco,obs,pagamento,troco:troco||"",tipo:"DELIVERY WEB",itens,acrescimos:taxaFrete,total,timestamp:Date.now()/1000,status:"novo"};
   database.ref("pedidos_novos").push(pedido).then(()=>console.log("pedido enviado"));
