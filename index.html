@@ -102,9 +102,17 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
   <label>Cupom de desconto</label>
   <div class="coupon-line"><input id="cupomInput" placeholder="Ex: PORTAL10"><button type="button" class="secondary" onclick="limparCupom()">Limpar</button><button type="button" class="primary" onclick="aplicarCupom()">Aplicar</button></div>
   <div id="cupomMsg" class="coupon-msg"></div>
-  <button type="button" class="primary" style="width:100%;margin-top:12px" onclick="calculateDelivery()">📍 Calcular frete com minha localização *</button>
-  <div id="freteInfo" style="margin-top:10px;color:#333"></div>
-  <label>Endereço completo *</label><input id="endereco" placeholder="Rua, número e bairro">
+  <label>Forma de recebimento *</label>
+  <select id="tipoRecebimento" onchange="atualizarTipoRecebimento()">
+    <option value="DELIVERY WEB">Entrega</option>
+    <option value="RETIRADA">Retirada no balcão</option>
+  </select>
+  <div id="deliveryBox">
+    <button type="button" class="primary" style="width:100%;margin-top:12px" onclick="calculateDelivery()">📍 Calcular frete com minha localização *</button>
+    <div id="freteInfo" style="margin-top:10px;color:#333"></div>
+    <label>Endereço completo *</label><input id="endereco" placeholder="Rua, número e bairro">
+  </div>
+  <div id="retiradaInfo" style="display:none;margin-top:10px;padding:10px;border-radius:10px;background:#ecfdf5;color:#14532d;font-weight:800">✅ Retirada no balcão selecionada. Não será cobrada taxa de entrega.</div>
   <label>Observações</label><textarea id="obs" placeholder="Ex: tirar cebola, ponto da carne..."></textarea>
   <label>Forma de pagamento *</label><select id="pagamento" onchange="toggleTroco()"><option>Dinheiro</option><option>Cartão de Crédito</option><option>Cartão de Débito</option><option>Pix</option></select>
   <div id="trocoBox"><label>Troco para quanto?</label><input id="troco" type="number" placeholder="Ex: 50"></div>
@@ -410,6 +418,31 @@ function showOrderModal(){if(!lojaAbertaManual)return alert("Loja fechada."); if
 function hideOrderModal(){document.getElementById("orderModal").classList.remove("show")}
 function toggleTroco(){document.getElementById("trocoBox").style.display=document.getElementById("pagamento").value==="Dinheiro"?"block":"none"}
 function haversineDistance(a,b){const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lon-a.lon)*Math.PI/180;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+function tipoRecebimentoAtual(){
+  const el=document.getElementById('tipoRecebimento');
+  return el ? el.value : 'DELIVERY WEB';
+}
+function atualizarTipoRecebimento(){
+  const tipo=tipoRecebimentoAtual();
+  const deliveryBox=document.getElementById('deliveryBox');
+  const retiradaInfo=document.getElementById('retiradaInfo');
+  const endereco=document.getElementById('endereco');
+  const freteInfo=document.getElementById('freteInfo');
+  if(tipo==='RETIRADA'){
+    taxaFrete=0;
+    clienteLatitude=null;
+    clienteLongitude=null;
+    if(deliveryBox) deliveryBox.style.display='none';
+    if(retiradaInfo) retiradaInfo.style.display='block';
+    if(endereco) endereco.value='RETIRADA NO BALCÃO';
+    if(freteInfo) freteInfo.innerHTML='';
+  }else{
+    if(deliveryBox) deliveryBox.style.display='block';
+    if(retiradaInfo) retiradaInfo.style.display='none';
+    if(endereco && endereco.value==='RETIRADA NO BALCÃO') endereco.value='';
+  }
+  updateCart();
+}
 function calculateDelivery(){
   const info=document.getElementById("freteInfo");
   if(!navigator.geolocation){info.textContent="Geolocalização não suportada.";return}
@@ -417,8 +450,16 @@ function calculateDelivery(){
   navigator.geolocation.getCurrentPosition(pos=>{clienteLatitude=pos.coords.latitude;clienteLongitude=pos.coords.longitude;const d=haversineDistance(hamburgueriaCoords,{lat:clienteLatitude,lon:clienteLongitude});taxaFrete=Math.ceil(d)*2;info.innerHTML=`Distância: <b>${d.toFixed(2)} km</b><br>Frete: <b>${moeda(taxaFrete)}</b>`;updateCart();},()=>{info.textContent="Erro ao obter localização. Verifique o GPS.";})
 }
 async function enviarPedido(){
-  const nome=document.getElementById("nome").value.trim(), telefone=telefoneLimpo(document.getElementById("telefone").value), endereco=document.getElementById("endereco").value.trim(), obs=document.getElementById("obs").value.trim(), pagamento=document.getElementById("pagamento").value, troco=document.getElementById("troco").value;
-  if(!nome||!telefone||!endereco||!clienteLatitude) return alert("Preencha nome, telefone, endereço e calcule o frete.");
+  const tipoRecebimento=tipoRecebimentoAtual();
+  let nome=document.getElementById("nome").value.trim(), telefone=telefoneLimpo(document.getElementById("telefone").value), endereco=document.getElementById("endereco").value.trim(), obs=document.getElementById("obs").value.trim(), pagamento=document.getElementById("pagamento").value, troco=document.getElementById("troco").value;
+  if(tipoRecebimento==='RETIRADA'){
+    taxaFrete=0;
+    clienteLatitude=null;
+    clienteLongitude=null;
+    endereco='RETIRADA NO BALCÃO';
+  }
+  if(!nome||!telefone) return alert("Preencha nome e telefone.");
+  if(tipoRecebimento!=='RETIRADA' && (!endereco||!clienteLatitude)) return alert("Preencha endereço e calcule o frete.");
   if(!database) return alert("Erro de conexão com o Firebase. Atualize a página e tente novamente.");
 
   let subtotal=0,textoItens="",itens=[];
@@ -454,7 +495,7 @@ async function enviarPedido(){
     } : null;
 
     const pedido={
-      nome, telefone, endereco, obs, pagamento, troco:troco||'', tipo:'DELIVERY WEB', itens,
+      nome, telefone, endereco, obs, pagamento, troco:troco||'', tipo:tipoRecebimento, retirada: tipoRecebimento==='RETIRADA', itens,
       acrescimos:taxaFrete,
       subtotal,
       desconto,
@@ -497,7 +538,7 @@ async function enviarPedido(){
   }
 }
 
-toggleTroco(); iniciar();
+toggleTroco(); atualizarTipoRecebimento(); iniciar();
 </script>
 </body>
 </html>
