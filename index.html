@@ -494,8 +494,10 @@ async function enviarPedido(){
       desconto: desconto
     } : null;
 
+    const tipoPedidoSistema = tipoRecebimento === 'RETIRADA' ? 'RETIRADA WEB' : 'DELIVERY WEB';
+
     const pedido={
-      nome, telefone, endereco, obs, pagamento, troco:troco||'', tipo:tipoRecebimento, retirada: tipoRecebimento==='RETIRADA', itens,
+      nome, telefone, endereco, obs, pagamento, troco:troco||'', tipo:tipoPedidoSistema, retirada: tipoRecebimento==='RETIRADA', itens,
       acrescimos:taxaFrete,
       subtotal,
       desconto,
