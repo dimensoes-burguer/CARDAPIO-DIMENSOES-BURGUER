@@ -48,6 +48,16 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
 .actions{display:flex;gap:10px;margin-top:15px} .secondary{border:0;background:#e5e7eb;color:#111;border-radius:12px;padding:13px 16px;font-weight:900;cursor:pointer;flex:1} .primary{flex:1}
 .empty{padding:30px;text-align:center;color:#666;background:white;border-radius:16px}
 .coupon-line{display:flex;gap:8px}.coupon-line input{flex:1}.coupon-msg{font-size:13px;margin-top:6px;font-weight:800}.discount-row{color:#16a34a;font-weight:900}
+
+.ad-modal{position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:180;display:none;align-items:center;justify-content:center;padding:22px}
+.ad-modal.show{display:flex}
+.ad-card{width:min(430px,92vw);background:white;border-radius:24px;overflow:hidden;position:relative;box-shadow:0 20px 70px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.35);animation:adPop .18s ease-out;color:#111}
+@keyframes adPop{from{transform:scale(.96);opacity:.4}to{transform:scale(1);opacity:1}}
+.ad-close{position:absolute;right:12px;top:12px;width:38px;height:38px;border:0;border-radius:999px;background:rgba(17,24,39,.86);color:white;font-size:24px;line-height:38px;cursor:pointer;z-index:2;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.ad-img{width:100%;display:block;aspect-ratio:4/5;object-fit:cover;background:#111827;cursor:pointer}
+.ad-info{padding:13px 16px 16px;background:linear-gradient(180deg,#fff,#f9fafb)}
+.ad-title{font-weight:900;font-size:18px;margin-bottom:4px}.ad-sub{font-size:13px;color:#6b7280;line-height:1.35}.ad-action{margin-top:10px;background:var(--green);color:white;border-radius:12px;padding:11px 13px;text-align:center;font-weight:900;cursor:pointer}
+
 @media(min-width:700px){.modal{align-items:center}.sheet{border-radius:24px}}
 </style>
 </head>
@@ -59,6 +69,18 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
 </header>
 <nav class="category-tabs"><div id="tabs" class="category-tabs-inner"></div></nav>
 <main id="menu" class="main"></main>
+
+<div id="adModal" class="ad-modal">
+  <div class="ad-card">
+    <button class="ad-close" onclick="fecharAnuncio()">×</button>
+    <img id="adImage" class="ad-img" src="" alt="Anúncio Dimensões Burguer" onclick="clicarAnuncioAtual()">
+    <div class="ad-info">
+      <div id="adTitle" class="ad-title">Promoção Dimensional</div>
+      <div id="adSub" class="ad-sub">Toque no anúncio para aproveitar.</div>
+      <div class="ad-action" onclick="clicarAnuncioAtual()">Aproveitar promoção</div>
+    </div>
+  </div>
+</div>
 
 <div id="cartBox" class="cart">
   <div class="cart-head" onclick="toggleCart()"><span class="cart-title">🛒 Seu carrinho</span><span id="cartCount">0 item</span></div>
@@ -181,7 +203,7 @@ const cardapioInicial = {
 let database; try { firebase.initializeApp(firebaseConfig); database=firebase.database(); } catch(e){ console.error(e); }
 const numeroHamburgueria="5562991014682";
 const hamburgueriaCoords={lat:-16.650244,lon:-49.153223};
-let cardapio={categorias:{}}, cart=[], lojaAbertaManual=false, taxaFrete=0, clienteLatitude=null, clienteLongitude=null, itemAberto=null, opcaoPendente=null, cupomAplicado=null;
+let cardapio={categorias:{}}, cart=[], lojaAbertaManual=false, taxaFrete=0, clienteLatitude=null, clienteLongitude=null, itemAberto=null, opcaoPendente=null, cupomAplicado=null, anuncios={}, anuncioAtual=null;
 
 function moeda(v){return "R$ "+Number(v||0).toFixed(2).replace(".",",")}
 function uid(prefix="id"){return prefix+"_"+Date.now()+"_"+Math.floor(Math.random()*9999)}
@@ -198,6 +220,7 @@ function iniciar(){
   if(!database) return;
   garantirCardapioInicial();
   database.ref("cardapio_web").on("value",s=>{ cardapio=s.val()||cardapioInicial; renderCardapio(); });
+  database.ref("anuncios").on("value",s=>{ anuncios=s.val()||{}; setTimeout(mostrarAnuncioInicial, 700); });
   database.ref("config/loja_aberta").on("value",s=>{ const v=s.val(); lojaAbertaManual=(v===null)?true:!!v; atualizarLoja(); updateCart(); });
 }
 
@@ -399,6 +422,39 @@ function atualizarResumoPedido(){
   const {subtotal, desconto, total}=resumoValores();
   let cupomTxt = cupomAplicado ? `<div class="row"><span>Cupom ${codigoCupom(cupomAplicado.codigo)}</span><b>-${moeda(desconto)}</b></div>` : '';
   el.innerHTML = `<div class="row"><span>Subtotal</span><b>${moeda(subtotal)}</b></div><div class="row"><span>Frete</span><b>${moeda(taxaFrete)}</b></div>${cupomTxt}<div class="row total-row"><span>Total</span><b>${moeda(total)}</b></div>`;
+}
+
+
+function anunciosAtivos(){return Object.values(anuncios||{}).filter(a=>a && a.ativo!==false && a.imagem).sort((a,b)=>(Number(a.ordem||999)-Number(b.ordem||999)));}
+function mostrarAnuncioInicial(){
+  const arr=anunciosAtivos();
+  if(!arr.length) return;
+  const a=arr[0];
+  // aparece ao entrar no cardápio, mas evita ficar abrindo de novo a cada atualização do Firebase na mesma visita
+  const chave='anuncio_visto_'+(a.id||a.titulo||a.imagem);
+  if(sessionStorage.getItem(chave)) return;
+  anuncioAtual=a;
+  const img=document.getElementById('adImage'), title=document.getElementById('adTitle'), sub=document.getElementById('adSub');
+  if(img) img.src=a.imagem||'';
+  if(title) title.textContent=a.titulo||'Promoção Dimensional';
+  if(sub){
+    if(a.acao==='link') sub.textContent='Toque para abrir o link da promoção.';
+    else if(a.acao==='item') sub.textContent='Toque para adicionar este item ao carrinho.';
+    else sub.textContent='Toque para aproveitar a promoção.';
+  }
+  const modal=document.getElementById('adModal');
+  if(modal) modal.classList.add('show');
+}
+function fecharAnuncio(){
+  if(anuncioAtual){sessionStorage.setItem('anuncio_visto_'+(anuncioAtual.id||anuncioAtual.titulo||anuncioAtual.imagem),'1');}
+  const modal=document.getElementById('adModal'); if(modal) modal.classList.remove('show');
+}
+function clicarAnuncioAtual(){
+  if(!anuncioAtual) return fecharAnuncio();
+  const a=anuncioAtual;
+  fecharAnuncio();
+  if(a.acao==='link' && a.url){ window.open(a.url, '_blank'); return; }
+  if(a.acao==='item' && a.catId && a.itemId){ addToCartById(a.catId, a.itemId); document.getElementById('cartBox').classList.add('open'); return; }
 }
 
 function removeFromCart(i){cart.splice(i,1); updateCart();}
