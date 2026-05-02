@@ -77,7 +77,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
     <div class="ad-info">
       <div id="adTitle" class="ad-title">Promoção Dimensional</div>
       <div id="adSub" class="ad-sub">Toque no anúncio para aproveitar.</div>
-      <div class="ad-action" onclick="clicarAnuncioAtual()">Aproveitar promoção</div>
+      <div id="adActionText" class="ad-action" onclick="clicarAnuncioAtual()">Aproveitar promoção</div>
     </div>
   </div>
 </div>
@@ -434,13 +434,15 @@ function mostrarAnuncioInicial(){
   const chave='anuncio_visto_'+(a.id||a.titulo||a.imagem);
   if(sessionStorage.getItem(chave)) return;
   anuncioAtual=a;
-  const img=document.getElementById('adImage'), title=document.getElementById('adTitle'), sub=document.getElementById('adSub');
+  const img=document.getElementById('adImage'), title=document.getElementById('adTitle'), sub=document.getElementById('adSub'), action=document.getElementById('adActionText');
   if(img) img.src=a.imagem||'';
   if(title) title.textContent=a.titulo||'Promoção Dimensional';
   if(sub){
-    if(a.acao==='link') sub.textContent='Toque para abrir o link da promoção.';
-    else if(a.acao==='item') sub.textContent='Toque para adicionar este item ao carrinho.';
-    else sub.textContent='Toque para aproveitar a promoção.';
+    const textoPadrao = a.acao==='link' ? 'Toque para abrir o link da promoção.' : (a.acao==='item' ? 'Toque para adicionar este item ao carrinho.' : 'Toque para aproveitar a promoção.');
+    sub.textContent = a.texto_subtitulo || textoPadrao;
+  }
+  if(action){
+    action.textContent = a.texto_botao || 'Aproveitar promoção';
   }
   const modal=document.getElementById('adModal');
   if(modal) modal.classList.add('show');
