@@ -93,24 +93,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
 
 <div id="optionsModal" class="modal"><div class="sheet"><div class="sheet-content form">
   <h2 id="optionsTitle">Escolha as opções</h2>
-  <div id="paoBox">
-    <label>Escolha o pão *</label>
-    <select id="paoSelect">
-      <option value="Brioche liso">Brioche liso</option>
-      <option value="Brioche premium">Brioche premium</option>
-      <option value="Pão australiano">Pão australiano</option>
-    </select>
-  </div>
-  <div id="refriBox">
-    <label>Escolha o refrigerante lata *</label>
-    <select id="refriSelect">
-      <option value="SODA">Soda Limonada</option>
-      <option value="SUKITA LARANJA">Sukita Laranja</option>
-      <option value="COCA-COLA">Coca-Cola</option>
-      <option value="COCA-COLA ZERO">Coca-Cola Zero</option>
-      <option value="GUARANÁ">Guaraná</option>
-    </select>
-  </div>
+  <div id="opcoesDinamicasBox"></div>
   <div class="actions">
     <button class="secondary" onclick="hideOptionsModal()">Cancelar</button>
     <button class="primary" onclick="confirmOptionsChoice()">Adicionar</button>
@@ -203,7 +186,7 @@ const cardapioInicial = {
 let database; try { firebase.initializeApp(firebaseConfig); database=firebase.database(); } catch(e){ console.error(e); }
 const numeroHamburgueria="5562991014682";
 const hamburgueriaCoords={lat:-16.650244,lon:-49.153223};
-let cardapio={categorias:{}}, cart=[], lojaAbertaManual=false, taxaFrete=0, clienteLatitude=null, clienteLongitude=null, itemAberto=null, opcaoPendente=null, cupomAplicado=null, anuncios={}, anuncioAtual=null;
+let cardapio={categorias:{}}, opcoesPedido={}, cart=[], lojaAbertaManual=false, taxaFrete=0, clienteLatitude=null, clienteLongitude=null, itemAberto=null, opcaoPendente=null, cupomAplicado=null, anuncios={}, anuncioAtual=null;
 
 function moeda(v){return "R$ "+Number(v||0).toFixed(2).replace(".",",")}
 function uid(prefix="id"){return prefix+"_"+Date.now()+"_"+Math.floor(Math.random()*9999)}
@@ -220,6 +203,7 @@ function iniciar(){
   if(!database) return;
   garantirCardapioInicial();
   database.ref("cardapio_web").on("value",s=>{ cardapio=s.val()||cardapioInicial; renderCardapio(); });
+  database.ref("opcoes_pedido").on("value",s=>{ opcoesPedido=s.val()||{}; });
   database.ref("anuncios").on("value",s=>{ anuncios=s.val()||{}; setTimeout(mostrarAnuncioInicial, 700); });
   database.ref("config/loja_aberta").on("value",s=>{ const v=s.val(); lojaAbertaManual=(v===null)?true:!!v; atualizarLoja(); updateCart(); });
 }
@@ -261,65 +245,98 @@ function renderCardapio(){
 function getItem(catId,itemId){const c=(cardapio.categorias||{})[catId]; return c && c.itens ? c.itens[itemId] : null}
 function getCategoria(catId){return (cardapio.categorias||{})[catId] || null}
 function normalizar(txt){return String(txt||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()}
+function gruposConfigurados(){return Object.values(opcoesPedido||{}).filter(g=>g && g.ativo!==false).sort((a,b)=>Number(a.ordem||999)-Number(b.ordem||999))}
+function opcoesAtivasGrupo(g){return Object.values(g.opcoes||{}).filter(o=>o && o.ativo!==false).sort((a,b)=>Number(a.ordem||999)-Number(b.ordem||999))}
+function normalizar(txt){return String(txt||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()}
 function tipoOpcoes(catId,item){
   const cat=getCategoria(catId);
   const nome=normalizar(item && item.nome);
   const categoria=normalizar(cat && cat.nome);
-
   if(categoria.includes("LANCHES INDIVIDUAIS")){
     if(nome !== "BARATIN") return {pao:true, refri:false};
     return {pao:false, refri:false};
   }
-
   if(categoria.includes("COMBOS INDIVIDUAIS")){
     if(nome.includes("BARATIN")) return {pao:false, refri:true};
     return {pao:true, refri:true};
   }
-
   return {pao:false, refri:false};
 }
-function montarDetalhes(opcoes){
-  const partes=[];
-  if(opcoes && opcoes.pao) partes.push("Pão: "+opcoes.pao);
-  if(opcoes && opcoes.refri) partes.push("Refri: "+opcoes.refri);
-  return partes.join(" | ");
+function gruposDoItem(catId,item){
+  const grupos=gruposConfigurados().filter(g=>g.itensPermitidos && g.itensPermitidos[item.id] && opcoesAtivasGrupo(g).length);
+  if(grupos.length) return grupos;
+  // Compatibilidade com lógica antiga se nenhum grupo personalizado foi configurado para o item.
+  const legacy=tipoOpcoes(catId,item);
+  const arr=[];
+  if(legacy.pao) arr.push({id:'legacy_pao',nome:'Escolha o pão',obrigatorio:true,opcoes:{a:{id:'a',nome:'Brioche liso',preco:0,ativo:true,ordem:1},b:{id:'b',nome:'Brioche premium',preco:0,ativo:true,ordem:2},c:{id:'c',nome:'Pão australiano',preco:0,ativo:true,ordem:3}}});
+  if(legacy.refri) arr.push({id:'legacy_refri',nome:'Escolha o refrigerante lata',obrigatorio:true,opcoes:{a:{id:'a',nome:'Soda Limonada',preco:0,ativo:true,ordem:1},b:{id:'b',nome:'Sukita Laranja',preco:0,ativo:true,ordem:2},c:{id:'c',nome:'Coca-Cola',preco:0,ativo:true,ordem:3},d:{id:'d',nome:'Coca-Cola Zero',preco:0,ativo:true,ordem:4},e:{id:'e',nome:'Guaraná',preco:0,ativo:true,ordem:5}}});
+  return arr;
 }
+function adicionaisAtivos(item){return Object.values((item&&item.adicionais)||{}).filter(a=>a&&a.ativo!==false).sort((a,b)=>Number(a.ordem||999)-Number(b.ordem||999))}
+function montarDetalhesPartes(partes){return partes.filter(Boolean).join(" | ");}
 function openItem(catId,itemId){
   itemAberto=getItem(catId,itemId); if(!itemAberto)return;
   const foto=itemAberto.foto?`<img src="${itemAberto.foto}">`:`<div style="height:220px;display:flex;align-items:center;justify-content:center;font-size:64px;background:radial-gradient(circle,#d1fae5,#e9d5ff)">🍔</div>`;
-  document.getElementById("itemModalContent").innerHTML=`${foto}<div class="sheet-content"><h2>${itemAberto.nome}</h2><p>${itemAberto.descricao||'Item especial da Dimensões Burguer.'}</p><h2>${moeda(itemAberto.preco)}</h2><button class="primary" style="width:100%" onclick="addToCart(itemAberto, '${catId}');closeItemModal()">Adicionar ao carrinho</button></div>`;
+  const ads=adicionaisAtivos(itemAberto);
+  const adsTxt=ads.length?`<p><b>Adicionais disponíveis:</b> ${ads.map(a=>a.nome+(Number(a.preco||0)>0?' +'+moeda(a.preco):'')).join(', ')}</p>`:'';
+  document.getElementById("itemModalContent").innerHTML=`${foto}<div class="sheet-content"><h2>${itemAberto.nome}</h2><p>${itemAberto.descricao||'Item especial da Dimensões Burguer.'}</p>${adsTxt}<h2>${moeda(itemAberto.preco)}</h2><button class="primary" style="width:100%" onclick="addToCart(itemAberto, '${catId}');closeItemModal()">Adicionar ao carrinho</button></div>`;
   document.getElementById("itemModal").classList.add("show");
 }
 function closeItemModal(){document.getElementById("itemModal").classList.remove("show")}
 function addToCartById(catId,itemId){const i=getItem(catId,itemId); if(i)addToCart(i, catId)}
+function renderOptionsModal(item, catId){
+  const grupos=gruposDoItem(catId,item);
+  const ads=adicionaisAtivos(item);
+  const box=document.getElementById('opcoesDinamicasBox');
+  box.innerHTML='';
+  grupos.forEach(g=>{
+    const ops=opcoesAtivasGrupo(g);
+    box.insertAdjacentHTML('beforeend',`<div class="option-group" data-group="${g.id}"><label>${g.nome||'Escolha uma opção'} ${g.obrigatorio!==false?'*':''}</label><select class="grupo-select">${ops.map(o=>`<option value="${o.id}" data-nome="${String(o.nome||'').replace(/"/g,'&quot;')}" data-preco="${Number(o.preco||0)}">${o.nome}${Number(o.preco||0)>0?' +'+moeda(o.preco):''}</option>`).join('')}</select></div>`);
+  });
+  if(ads.length){
+    box.insertAdjacentHTML('beforeend',`<div class="option-group"><label>Adicionais opcionais</label>${ads.map(a=>`<label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" class="adicional-check" style="width:auto" data-nome="${String(a.nome||'').replace(/"/g,'&quot;')}" data-preco="${Number(a.preco||0)}"> ${a.nome}${Number(a.preco||0)>0?' +'+moeda(a.preco):''}</label>`).join('')}</div>`);
+  }
+  return grupos.length || ads.length;
+}
 function addToCart(item, catId=null){
   if(!lojaAbertaManual){alert("A loja está fechada.");return}
-  const opcoes=catId ? tipoOpcoes(catId,item) : {pao:false,refri:false};
-  if(opcoes.pao || opcoes.refri){
-    opcaoPendente={item, opcoes};
+  if(catId && renderOptionsModal(item,catId)){
+    opcaoPendente={item,catId};
     document.getElementById("optionsTitle").textContent=item.nome;
-    document.getElementById("paoBox").style.display=opcoes.pao ? "block" : "none";
-    document.getElementById("refriBox").style.display=opcoes.refri ? "block" : "none";
     document.getElementById("optionsModal").classList.add("show");
     return;
   }
-  inserirNoCarrinho(item, "");
+  inserirNoCarrinho(item, "", 0, []);
 }
-function inserirNoCarrinho(item, detalhes=""){
+function inserirNoCarrinho(item, detalhes="", extra=0, extrasLista=[]){
   analyticsCarrinhoIniciado();
   analyticsInc('itens_adicionados');
-  analyticsEvent('item_adicionado',{nome:item.nome,preco:Number(item.preco||0)});
-  cart.push({nome:item.nome,preco:Number(item.preco||0),descricao:item.descricao||"",foto:item.foto||"",detalhes:detalhes||""});
+  const precoBase=Number(item.preco||0), precoFinal=precoBase+Number(extra||0);
+  analyticsEvent('item_adicionado',{nome:item.nome,preco:precoFinal});
+  cart.push({nome:item.nome,preco:precoFinal,preco_base:precoBase,descricao:item.descricao||"",foto:item.foto||"",detalhes:detalhes||"",extras:extrasLista||[]});
   updateCart();
   document.getElementById("cartBox").classList.add("open");
 }
 function hideOptionsModal(){opcaoPendente=null;document.getElementById("optionsModal").classList.remove("show")}
 function confirmOptionsChoice(){
   if(!opcaoPendente) return;
-  const escolha={};
-  if(opcaoPendente.opcoes.pao) escolha.pao=document.getElementById("paoSelect").value;
-  if(opcaoPendente.opcoes.refri) escolha.refri=document.getElementById("refriSelect").value;
-  inserirNoCarrinho(opcaoPendente.item, montarDetalhes(escolha));
+  const partes=[], extras=[];
+  let extra=0;
+  document.querySelectorAll('#opcoesDinamicasBox .option-group[data-group]').forEach(g=>{
+    const label=g.querySelector('label')?.textContent?.replace('*','').trim()||'Opção';
+    const sel=g.querySelector('select');
+    const opt=sel.options[sel.selectedIndex];
+    const nome=opt.dataset.nome||opt.textContent;
+    const preco=Number(opt.dataset.preco||0);
+    partes.push(label+': '+nome);
+    if(preco>0){extra+=preco; extras.push({grupo:label,nome,preco});}
+  });
+  document.querySelectorAll('#opcoesDinamicasBox .adicional-check:checked').forEach(ch=>{
+    const nome=ch.dataset.nome||'Adicional', preco=Number(ch.dataset.preco||0);
+    partes.push('Adicional: '+nome+(preco>0?' +'+moeda(preco):''));
+    extra+=preco; extras.push({grupo:'Adicional',nome,preco});
+  });
+  inserirNoCarrinho(opcaoPendente.item, montarDetalhesPartes(partes), extra, extras);
   hideOptionsModal();
   closeItemModal();
 }
