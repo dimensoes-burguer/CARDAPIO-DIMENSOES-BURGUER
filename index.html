@@ -468,7 +468,21 @@ function analyticsVisitorId(){
 function analyticsInc(campo, valor=1){
   try{
     if(!database) return;
-    database.ref('analytics/daily/'+analyticsHoje()+'/'+campo).transaction(v=>Number(v||0)+valor);
+    const dia=analyticsHoje();
+    const incPath=(path)=>database.ref(path).transaction(v=>Number(v||0)+valor);
+    // Grava nos dois caminhos para o Painel Mobile e o Admin conseguirem ler sem conflito.
+    incPath('analytics/daily/'+dia+'/'+campo);
+    incPath('analytics/dias/'+dia+'/'+campo);
+
+    // Compatibilidade de nomes antigos/novos dos relatórios.
+    if(campo==='pedidos_finalizados'){
+      incPath('analytics/daily/'+dia+'/pedidos_confirmados');
+      incPath('analytics/dias/'+dia+'/pedidos_confirmados');
+    }
+    if(campo==='pedidos_confirmados'){
+      incPath('analytics/daily/'+dia+'/pedidos_finalizados');
+      incPath('analytics/dias/'+dia+'/pedidos_finalizados');
+    }
   }catch(e){console.warn('analyticsInc',e);}
 }
 function analyticsEvent(nome, dados={}){
@@ -483,10 +497,11 @@ function analyticsInit(){
     const sessao=analyticsSessionId();
     const visitante=analyticsVisitorId();
     const onlineRef=database.ref('analytics/online/'+sessao);
-    const payload={visitante,sessao,pagina:'cardapio',userAgent:navigator.userAgent||'',inicio:new Date().toISOString(),ultimo_ping:Date.now()};
+    const agora=Date.now();
+    const payload={visitante,sessao,pagina:'cardapio',userAgent:navigator.userAgent||'',inicio:new Date().toISOString(),ultimo_ping:agora,ultimo_ativo:agora,lastSeen:agora,ultimoAcesso:agora};
     onlineRef.set(payload);
     onlineRef.onDisconnect().remove();
-    setInterval(()=>onlineRef.update({ultimo_ping:Date.now()}),15000);
+    setInterval(()=>{const t=Date.now(); onlineRef.update({ultimo_ping:t,ultimo_ativo:t,lastSeen:t,ultimoAcesso:t});},10000);
     if(!sessionStorage.getItem('db_visita_contada')){
       sessionStorage.setItem('db_visita_contada','1');
       analyticsInc('visitas');
