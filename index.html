@@ -522,11 +522,17 @@ function mostrarAnuncioInicial(){
   if(img) img.src=a.imagem||'';
   if(title) title.textContent=a.titulo||'Promoção Dimensional';
   if(sub){
-    const textoPadrao = a.acao==='link' ? 'Toque para abrir o link da promoção.' : (a.acao==='item' ? 'Toque para adicionar este item ao carrinho.' : 'Toque para aproveitar a promoção.');
+    const textoPadrao = a.acao==='link' ? 'Toque para abrir o link da promoção.' : (a.acao==='item' ? 'Toque para adicionar este item ao carrinho.' : 'Confira esta novidade da Dimensões Burguer.');
     sub.textContent = a.texto_subtitulo || textoPadrao;
   }
   if(action){
-    action.textContent = a.texto_botao || 'Aproveitar promoção';
+    action.textContent = a.texto_botao || (a.acao==='nada' ? 'Fechar' : 'Aproveitar promoção');
+    action.onclick = a.acao==='nada' ? fecharAnuncio : clicarAnuncioAtual;
+    action.style.background = a.acao==='nada' ? '#374151' : 'var(--green)';
+  }
+  if(img){
+    img.onclick = a.acao==='nada' ? null : clicarAnuncioAtual;
+    img.style.cursor = a.acao==='nada' ? 'default' : 'pointer';
   }
   const modal=document.getElementById('adModal');
   if(modal) modal.classList.add('show');
@@ -540,12 +546,20 @@ function fecharAnuncio(){
 function clicarAnuncioAtual(){
   if(!anuncioAtual) return fecharAnuncio();
   const a=anuncioAtual;
+  if(a.acao==='nada') return;
   analyticsInc('cliques_anuncios');
   try{
-    const adKey=analyticsKey(a.id||a.titulo||a.imagem||'sem_id');
+    const rawId=String(a.id||a.titulo||a.imagem||'sem_id');
+    const adKey=analyticsKey(rawId);
     database.ref('analytics/anuncios/'+adKey+'/cliques').transaction(v=>Number(v||0)+1);
     database.ref('analytics/anuncios/'+adKey).update({id:a.id||'',titulo:a.titulo||'',ultimo_clique:new Date().toISOString()});
     database.ref('analytics/anuncios/'+adKey+'/por_dia/'+analyticsHoje()).transaction(v=>Number(v||0)+1);
+    if(a.id){
+      database.ref('analytics/anuncios/'+a.id+'/cliques').transaction(v=>Number(v||0)+1);
+      database.ref('analytics/anuncios/'+a.id).update({id:a.id||'',titulo:a.titulo||'',ultimo_clique:new Date().toISOString()});
+      database.ref('analytics/anuncios/'+a.id+'/por_dia/'+analyticsHoje()).transaction(v=>Number(v||0)+1);
+      database.ref('anuncios/'+a.id+'/cliques').transaction(v=>Number(v||0)+1);
+    }
   }catch(e){console.warn('analytics anuncio clique',e);}
   analyticsEvent('anuncio_clicado',{id:a.id||'',titulo:a.titulo||'',acao:a.acao||''});
   fecharAnuncio();
