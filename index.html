@@ -673,9 +673,13 @@ async function enviarPedido(){
 
     const tipoPedidoSistema = tipoRecebimento === 'RETIRADA' ? 'RETIRADA WEB' : 'DELIVERY WEB';
 
+    const temGps = tipoRecebimento !== 'RETIRADA' && clienteLatitude !== null && clienteLongitude !== null;
+
     const pedido={
       nome, telefone, endereco, obs, pagamento, troco:troco||'', tipo:tipoPedidoSistema, retirada: tipoRecebimento==='RETIRADA', itens,
       acrescimos:taxaFrete,
+      taxa_entrega: taxaFrete,
+      frete: taxaFrete,
       subtotal,
       desconto,
       desconto_cupom: desconto,
@@ -683,6 +687,20 @@ async function enviarPedido(){
       valor_cobrado: total,
       cupom: cupomPedido,
       cupom_codigo: cupomPedido ? cupomPedido.codigo : '',
+
+      // Localização capturada no botão "Calcular frete com minha localização".
+      // Esses campos vão para o sistema e aparecem no botão COP.
+      coordenadas: temGps ? `${clienteLatitude},${clienteLongitude}` : '',
+      coordenadas_cliente: temGps ? `${clienteLatitude},${clienteLongitude}` : '',
+      lat_cliente: temGps ? clienteLatitude : '',
+      lng_cliente: temGps ? clienteLongitude : '',
+      latitude: temGps ? clienteLatitude : '',
+      longitude: temGps ? clienteLongitude : '',
+      gps_url: temGps ? `https://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}` : '',
+      maps_url: temGps ? `https://www.google.com/maps/dir/?api=1&destination=${clienteLatitude},${clienteLongitude}&travelmode=driving` : '',
+      waze_url: temGps ? `https://waze.com/ul?ll=${clienteLatitude},${clienteLongitude}&navigate=yes` : '',
+      localizacao: temGps ? {lat: clienteLatitude, lng: clienteLongitude} : null,
+
       timestamp:Date.now()/1000,
       status:'novo'
     };
@@ -703,7 +721,9 @@ async function enviarPedido(){
     }
 
     let texto=`*-- NOVO PEDIDO | DIMENSÕES BURGUER --* 🍔\n\n*Cliente:* ${nome}\n*Telefone:* ${telefone}\n\n*ITENS:*\n${textoItens}\n*ENDEREÇO:*\n${endereco}\n\n`;
-    texto+=`*📍 GPS:*\nhttps://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}\n\n`;
+    if(temGps){
+      texto+=`*📍 GPS:*\n${clienteLatitude},${clienteLongitude}\nhttps://www.google.com/maps?q=${clienteLatitude},${clienteLongitude}\n\n`;
+    }
     if(obs) texto+=`*OBS:*\n${obs}\n\n`;
     texto+=`*RESUMO FINANCEIRO:*\nSubtotal: ${moeda(subtotal)}\nFrete: ${moeda(taxaFrete)}\n`;
     if(cupomPedido) texto+=`Cupom: ${cupomPedido.codigo}\nDesconto do cupom: -${moeda(desconto)}\n`;
