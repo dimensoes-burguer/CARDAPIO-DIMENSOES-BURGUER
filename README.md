@@ -1,1 +1,1 @@
-# CARDAPIO-DIMENSOES-BURGUER
+Este é o Cardapio Web da Hamburgueria parceira nossa, responsavel por receber, gerar e mandar os pedidos dos clientes direto pro sistema de pedidos python pelo firebase, assim que o pedido é finalizado no cardapio, o pedido é envio pelos servidores da firebase pro pthon, conseguindo sincronizar os 2.
