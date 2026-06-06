@@ -57,11 +57,17 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ari
 .ad-img{width:100%;display:block;aspect-ratio:4/5;object-fit:cover;background:#111827;cursor:pointer}
 .ad-info{padding:13px 16px 16px;background:linear-gradient(180deg,#fff,#f9fafb)}
 .ad-title{font-weight:900;font-size:18px;margin-bottom:4px}.ad-sub{font-size:13px;color:#6b7280;line-height:1.35}.ad-action{margin-top:10px;background:var(--green);color:white;border-radius:12px;padding:11px 13px;text-align:center;font-weight:900;cursor:pointer}
+.privacy-notice{position:fixed;left:12px;right:12px;bottom:106px;z-index:160;max-width:900px;margin:0 auto;background:#111827;color:white;border-radius:16px;padding:13px 14px;box-shadow:0 10px 34px rgba(0,0,0,.28);display:none;gap:12px;align-items:center}
+.privacy-notice.show{display:flex}.privacy-notice p{margin:0;font-size:13px;line-height:1.35;color:#e5e7eb;flex:1}.privacy-notice button{border:0;background:var(--green);color:white;border-radius:10px;padding:10px 12px;font-weight:900;cursor:pointer;white-space:nowrap}
 
 @media(min-width:700px){.modal{align-items:center}.sheet{border-radius:24px}}
 </style>
 </head>
 <body>
+<div id="privacyNotice" class="privacy-notice" role="dialog" aria-live="polite">
+  <p>Usamos seus dados apenas para montar e entregar o pedido. A localização só é coletada se você tocar em calcular frete com minha localização.</p>
+  <button type="button" onclick="aceitarPrivacidade()">OK</button>
+</div>
 <header class="top">
   <div class="brand"><div class="logo"><img src="logo-dimensoes-burguer.png" alt="Logo Dimensões Burguer"></div><div><h1>DIMENSÕES BURGUER</h1><p>Entre para a dimensão do sabor</p></div></div>
   <div id="status" class="status"></div>
@@ -195,8 +201,12 @@ function itens(cat){return Object.values(cat.itens||{}).filter(i=>i.ativo!==fals
 function short(t,n=95){t=t||"";return t.length>n?t.slice(0,n)+"...":t}
 
 async function garantirCardapioInicial(){
-  const snap=await database.ref("cardapio_web").once("value");
-  if(!snap.exists()) await database.ref("cardapio_web").set(cardapioInicial);
+  try{
+    const snap=await database.ref("cardapio_web").once("value");
+    if(!snap.exists()) await database.ref("cardapio_web").set(cardapioInicial);
+  }catch(e){
+    console.warn("Cardápio inicial não foi gravado pelo cliente público:", e.message);
+  }
 }
 
 function iniciar(){
@@ -492,12 +502,6 @@ function analyticsInit(){
   try{
     if(!database) return;
     const sessao=analyticsSessionId();
-    const visitante=analyticsVisitorId();
-    const onlineRef=database.ref('analytics/online/'+sessao);
-    const payload={visitante,sessao,pagina:'cardapio',userAgent:navigator.userAgent||'',inicio:new Date().toISOString(),ultimo_ping:Date.now()};
-    onlineRef.set(payload);
-    onlineRef.onDisconnect().remove();
-    setInterval(()=>onlineRef.update({ultimo_ping:Date.now()}),15000);
     if(!sessionStorage.getItem('db_visita_contada')){
       sessionStorage.setItem('db_visita_contada','1');
       analyticsInc('visitas');
@@ -740,7 +744,18 @@ async function enviarPedido(){
   }
 }
 
-toggleTroco(); atualizarTipoRecebimento(); iniciar(); setTimeout(analyticsInit, 900);
+function mostrarAvisoPrivacidade(){
+  if(sessionStorage.getItem('db_privacidade_ok')) return;
+  const aviso=document.getElementById('privacyNotice');
+  if(aviso) aviso.classList.add('show');
+}
+function aceitarPrivacidade(){
+  sessionStorage.setItem('db_privacidade_ok','1');
+  const aviso=document.getElementById('privacyNotice');
+  if(aviso) aviso.classList.remove('show');
+}
+
+toggleTroco(); atualizarTipoRecebimento(); iniciar(); mostrarAvisoPrivacidade(); setTimeout(analyticsInit, 900);
 </script>
 </body>
 </html>
